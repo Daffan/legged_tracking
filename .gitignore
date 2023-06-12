@@ -68,3 +68,7 @@ docker/rsc
 *.jit
 tmp
 *.tar
+
+# for wandb logging
+checkpoints
+wandb

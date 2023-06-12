@@ -4,9 +4,12 @@ import time
 from collections import deque
 
 import torch
-from ml_logger import logger
+# from ml_logger import logger
+import wandb
 from params_proto import PrefixProto
 import os
+import shutil
+import pickle
 import copy
 
 from .actor_critic import ActorCritic
@@ -90,11 +93,6 @@ class Runner:
         self.env.reset()
 
     def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, eval_expert=False):
-        from ml_logger import logger
-        # initialize writer
-        assert logger.prefix, "you will overwrite the entire instrument server"
-
-        logger.start('start', 'epoch', 'episode', 'run', 'step')
 
         if init_at_random_ep_len:
             self.env.episode_length_buf = torch.randint_like(self.env.episode_length_buf,
@@ -143,12 +141,14 @@ class Runner:
                     self.alg.process_env_step(rewards[:num_train_envs], dones[:num_train_envs], infos)
 
                     if 'train/episode' in infos:
-                        with logger.Prefix(metrics="train/episode"):
-                            logger.store_metrics(**infos['train/episode'])
+                        # with logger.Prefix(metrics="train/episode"):
+                        #     logger.store_metrics(**infos['train/episode'])
+                        wandb.log(infos['train/episode'])
 
                     if 'eval/episode' in infos:
-                        with logger.Prefix(metrics="eval/episode"):
-                            logger.store_metrics(**infos['eval/episode'])
+                        # with logger.Prefix(metrics="eval/episode"):
+                        #     logger.store_metrics(**infos['eval/episode'])
+                        wandb.log(infos['eval/episode'])
 
                     if 'curriculum' in infos:
                         curr_bins_train = infos['curriculum']['reset_train_env_bins']
@@ -195,74 +195,83 @@ class Runner:
                     self.env.reset_evaluation_envs()
 
                 if it % eval_freq == 0:
-                    logger.save_pkl({"iteration": it,
-                                     **caches.slot_cache.get_summary(),
-                                     **caches.dist_cache.get_summary()},
-                                    path=f"curriculum/info.pkl", append=True)
+                    # logger.save_pkl({"iteration": it,
+                    #                 **caches.slot_cache.get_summary(),
+                    #                 **caches.dist_cache.get_summary()},
+                    #                path=f"curriculum/info.pkl", append=True)
+                    if not os.path.exists(os.path.join(wandb.run.dir, "curriculum")):
+                        os.makedirs(os.path.join(wandb.run.dir, "curriculum"))
+                    save_path = os.path.join(wandb.run.dir, "curriculum/info.pkl")
+                    pickle.dump({"iteration": it,
+                                    **caches.slot_cache.get_summary(),
+                                    **caches.dist_cache.get_summary()},
+                                    open(save_path, "wb"))
+                    wandb.save(save_path)
 
             mean_value_loss, mean_surrogate_loss, mean_adaptation_module_loss = self.alg.update()
 
-            logger.store_metrics(
-                time_elapsed=logger.since('start'),
-                time_iter=logger.split('epoch'),
+            store_metrics = dict(
+                #time_elapsed=logger.since('start'),
+                #time_iter=logger.split('epoch'),
                 adaptation_loss=mean_adaptation_module_loss,
                 mean_value_loss=mean_value_loss,
                 mean_surrogate_loss=mean_surrogate_loss
             )
+            wandb.log(store_metrics)
 
             if RunnerArgs.save_video_interval:
                 self.log_video(it)
 
             self.tot_timesteps += self.num_steps_per_env * self.env.num_envs
-            if logger.every(RunnerArgs.log_freq, "iteration", start_on=1):
+            # if it % RunnerArgs.log_freq == 0:
                 # if it % Config.log_freq == 0:
-                logger.log_metrics_summary(key_values={"timesteps": self.tot_timesteps, "iterations": it})
-                logger.job_running()
+                # logger.log_metrics_summary(key_values={"timesteps": self.tot_timesteps, "iterations": it})
+                # logger.job_running()
 
             if it % RunnerArgs.save_interval == 0:
-                with logger.Sync():
-                    logger.torch_save(self.alg.actor_critic.state_dict(), f"checkpoints/ac_weights_{it:06d}.pt")
-                    logger.duplicate(f"checkpoints/ac_weights_{it:06d}.pt", f"checkpoints/ac_weights_last.pt")
+                # with logger.Sync():
+                torch.save(self.alg.actor_critic.state_dict(), f"checkpoints/ac_weights_{it:06d}.pt")
+                shutil.copyfile(f"checkpoints/ac_weights_{it:06d}.pt", f"checkpoints/ac_weights_last.pt")
 
-                    path = f'{MINI_GYM_ROOT_DIR}/tmp/legged_data'
+                path = f'{MINI_GYM_ROOT_DIR}/tmp/legged_data'
 
-                    os.makedirs(path, exist_ok=True)
+                os.makedirs(path, exist_ok=True)
 
-                    adaptation_module_path = f'{path}/adaptation_module_latest.jit'
-                    adaptation_module = copy.deepcopy(self.alg.actor_critic.adaptation_module).to('cpu')
-                    traced_script_adaptation_module = torch.jit.script(adaptation_module)
-                    traced_script_adaptation_module.save(adaptation_module_path)
+                adaptation_module_path = f'{path}/adaptation_module_latest.jit'
+                adaptation_module = copy.deepcopy(self.alg.actor_critic.adaptation_module).to('cpu')
+                traced_script_adaptation_module = torch.jit.script(adaptation_module)
+                traced_script_adaptation_module.save(adaptation_module_path)
 
-                    body_path = f'{path}/body_latest.jit'
-                    body_model = copy.deepcopy(self.alg.actor_critic.actor_body).to('cpu')
-                    traced_script_body_module = torch.jit.script(body_model)
-                    traced_script_body_module.save(body_path)
+                body_path = f'{path}/body_latest.jit'
+                body_model = copy.deepcopy(self.alg.actor_critic.actor_body).to('cpu')
+                traced_script_body_module = torch.jit.script(body_model)
+                traced_script_body_module.save(body_path)
 
-                    logger.upload_file(file_path=adaptation_module_path, target_path=f"checkpoints/", once=False)
-                    logger.upload_file(file_path=body_path, target_path=f"checkpoints/", once=False)
+                wandb.save(adaptation_module_path, base_path==path)
+                wandb.save(body_path, base_path==path)
 
             self.current_learning_iteration += num_learning_iterations
 
-        with logger.Sync():
-            logger.torch_save(self.alg.actor_critic.state_dict(), f"checkpoints/ac_weights_{it:06d}.pt")
-            logger.duplicate(f"checkpoints/ac_weights_{it:06d}.pt", f"checkpoints/ac_weights_last.pt")
+        # with logger.Sync():
+        torch.save(self.alg.actor_critic.state_dict(), f"checkpoints/ac_weights_{it:06d}.pt")
+        shutil.copyfile(f"checkpoints/ac_weights_{it:06d}.pt", f"checkpoints/ac_weights_last.pt")
 
-            path = f'{MINI_GYM_ROOT_DIR}/tmp/legged_data'
+        path = f'{MINI_GYM_ROOT_DIR}/tmp/legged_data'
 
-            os.makedirs(path, exist_ok=True)
+        os.makedirs(path, exist_ok=True)
 
-            adaptation_module_path = f'{path}/adaptation_module_latest.jit'
-            adaptation_module = copy.deepcopy(self.alg.actor_critic.adaptation_module).to('cpu')
-            traced_script_adaptation_module = torch.jit.script(adaptation_module)
-            traced_script_adaptation_module.save(adaptation_module_path)
+        adaptation_module_path = f'{path}/adaptation_module_latest.jit'
+        adaptation_module = copy.deepcopy(self.alg.actor_critic.adaptation_module).to('cpu')
+        traced_script_adaptation_module = torch.jit.script(adaptation_module)
+        traced_script_adaptation_module.save(adaptation_module_path)
 
-            body_path = f'{path}/body_latest.jit'
-            body_model = copy.deepcopy(self.alg.actor_critic.actor_body).to('cpu')
-            traced_script_body_module = torch.jit.script(body_model)
-            traced_script_body_module.save(body_path)
+        body_path = f'{path}/body_latest.jit'
+        body_model = copy.deepcopy(self.alg.actor_critic.actor_body).to('cpu')
+        traced_script_body_module = torch.jit.script(body_model)
+        traced_script_body_module.save(body_path)
 
-            logger.upload_file(file_path=adaptation_module_path, target_path=f"checkpoints/", once=False)
-            logger.upload_file(file_path=body_path, target_path=f"checkpoints/", once=False)
+        wandb.save(adaptation_module_path, base_path=path)
+        wandb.save(body_path, base_path=path)
 
     def log_video(self, it):
         if it - self.last_recording_it >= RunnerArgs.save_video_interval:
@@ -276,14 +285,18 @@ class Runner:
         if len(frames) > 0:
             self.env.pause_recording()
             print("LOGGING VIDEO")
-            logger.save_video(frames, f"videos/{it:05d}.mp4", fps=1 / self.env.dt)
+            # logger.save_video(frames, f"videos/{it:05d}.mp4", fps=1 / self.env.dt)
+            frames_np = np.stack(frames).transpose(0, 3, 1, 2)
+            wandb.log({"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")})
 
         if self.env.num_eval_envs > 0:
             frames = self.env.get_complete_frames_eval()
             if len(frames) > 0:
                 self.env.pause_recording_eval()
                 print("LOGGING EVAL VIDEO")
-                logger.save_video(frames, f"videos/{it:05d}_eval.mp4", fps=1 / self.env.dt)
+                # logger.save_video(frames, f"videos/{it:05d}_eval.mp4", fps=1 / self.env.dt)
+                frames_np = np.stack(frames).transpose(0, 3, 1, 2)
+                wandb.log({"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")})
 
     def get_inference_policy(self, device=None):
         self.alg.actor_critic.eval()

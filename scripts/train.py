@@ -3,12 +3,13 @@ def train_go1(headless=True):
     import isaacgym
     assert isaacgym
     import torch
+    import wandb
 
     from go1_gym.envs.base.legged_robot_config import Cfg
     from go1_gym.envs.go1.go1_config import config_go1
     from go1_gym.envs.go1.velocity_tracking import VelocityTrackingEasyEnv
 
-    from ml_logger import logger
+    # from ml_logger import logger
 
     from go1_gym_learn.ppo_cse import Runner
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
@@ -207,8 +208,9 @@ def train_go1(headless=True):
     env = VelocityTrackingEasyEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
 
     # log the experiment parameters
-    logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
-                      Cfg=vars(Cfg))
+    # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
+    #                   Cfg=vars(Cfg))
+    wandb.init(project="go1_gym", config=vars(Cfg))
 
     env = HistoryWrapper(env)
     gpu_id = 0
@@ -218,12 +220,12 @@ def train_go1(headless=True):
 
 if __name__ == '__main__':
     from pathlib import Path
-    from ml_logger import logger
     from go1_gym import MINI_GYM_ROOT_DIR
 
     stem = Path(__file__).stem
-    logger.configure(logger.utcnow(f'gait-conditioned-agility/%Y-%m-%d/{stem}/%H%M%S.%f'),
-                     root=Path(f"{MINI_GYM_ROOT_DIR}/runs").resolve(), )
+    # logger.configure(logger.utcnow(f'gait-conditioned-agility/%Y-%m-%d/{stem}/%H%M%S.%f'),
+    #                  root=Path(f"{MINI_GYM_ROOT_DIR}/runs").resolve(), )
+    '''
     logger.log_text("""
                 charts: 
                 - yKey: train/episode/rew_total/mean
@@ -251,6 +253,7 @@ if __name__ == '__main__':
                 - yKey: adaptation_loss/mean
                   xKey: iterations
                 """, filename=".charts.yml", dedent=True)
+    '''
 
     # to see the environment rendering, set headless=False
     train_go1(headless=False)
