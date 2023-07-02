@@ -6,7 +6,7 @@ import torch
 from tqdm import trange
 
 from go1_gym.envs import *
-from go1_gym.envs.base.legged_robot_config import Cfg
+from go1_gym.envs.base.legged_robot_velocity_tracking_config import Cfg
 from go1_gym.envs.go1.go1_config import config_go1
 from go1_gym.envs.go1.velocity_tracking import VelocityTrackingEasyEnv
 

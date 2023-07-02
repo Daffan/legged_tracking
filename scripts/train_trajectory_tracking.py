@@ -5,9 +5,9 @@ def train_go1(headless=True):
     import torch
     import wandb
 
-    from go1_gym.envs.base.legged_robot_config import Cfg
+    from go1_gym.envs.base.legged_robot_tracjectory_tracking import Cfg
     from go1_gym.envs.go1.go1_config import config_go1
-    from go1_gym.envs.go1.velocity_tracking import VelocityTrackingEasyEnv
+    from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
     # from ml_logger import logger
 
@@ -19,6 +19,10 @@ def train_go1(headless=True):
 
     config_go1(Cfg)
 
+    Cfg.env.num_observations = 45
+    Cfg.env.num_scalar_observations = 45
+
+    '''
     Cfg.commands.num_lin_vel_bins = 30
     Cfg.commands.num_ang_vel_bins = 30
     Cfg.curriculum_thresholds.tracking_ang_vel = 0.7
@@ -204,12 +208,14 @@ def train_go1(headless=True):
     Cfg.commands.pacing_offset = False
     Cfg.commands.binary_phases = True
     Cfg.commands.gaitwise_curricula = True
+    '''
 
-    env = VelocityTrackingEasyEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
+    env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
 
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))
+    # import os; os.environ['WANDB_SILENT']="true"
     wandb.init(project="go1_gym", config=vars(Cfg))
 
     env = HistoryWrapper(env)

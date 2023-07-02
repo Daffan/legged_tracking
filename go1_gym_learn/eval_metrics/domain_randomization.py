@@ -1,4 +1,4 @@
-from go1_gym.envs.base.legged_robot_config import Cfg
+from go1_gym.envs.base.legged_robot_velocity_tracking_config import Cfg
 
 
 def base_set():

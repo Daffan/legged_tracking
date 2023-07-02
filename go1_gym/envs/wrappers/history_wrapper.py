@@ -17,8 +17,8 @@ class HistoryWrapper(gym.Wrapper):
 
     def step(self, action):
         # privileged information and observation history are stored in info
-        obs, rew, done, info = self.env.step(action)
-        privileged_obs = info["privileged_obs"]
+        obs, privileged_obs, rew, done, info = self.env.step(action)
+        # privileged_obs = # info["privileged_obs"] 
 
         self.obs_history = torch.cat((self.obs_history[:, self.env.num_obs:], obs), dim=-1)
         return {'obs': obs, 'privileged_obs': privileged_obs, 'obs_history': self.obs_history}, rew, done, info
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
     from go1_gym_learn.ppo.actor_critic import AC_Args
 
-    from go1_gym.envs.base.legged_robot_config import Cfg
+    from go1_gym.envs.base.legged_robot_velocity_tracking_config import Cfg
     from go1_gym.envs.mini_cheetah.mini_cheetah_config import config_mini_cheetah
     config_mini_cheetah(Cfg)
 
