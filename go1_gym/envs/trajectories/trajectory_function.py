@@ -15,10 +15,9 @@ class TrajectoryFunctions:
         # fixed delta x, y between waypoints as specified by the config
         # return tractories of shape (num_envs, traj_length, 6)
         tcfg = self.env.cfg.commands
-
-        x = torch.ones((*env_ids.shape, tcfg.traj_length), device=self.env.device) * tcfg.base_x
+        x = torch.arange(tcfg.traj_length, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_x
         x += self.env.robot_states[env_ids, 0:1]
-        y = torch.ones((*env_ids.shape, tcfg.traj_length), device=self.env.device) * tcfg.base_y
+        y = torch.arange(tcfg.traj_length, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_y
         y += self.env.robot_states[env_ids, 1:2]
         z = torch.zeros_like(x) + tcfg.base_z
         yaw = torch.ones_like(x) * tcfg.base_yaw

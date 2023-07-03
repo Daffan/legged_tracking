@@ -5,10 +5,10 @@ def train_go1(headless=True):
     import torch
     import wandb
 
-    from go1_gym.envs.base.legged_robot_velocity_tracking_config import Cfg
+    from go1_gym.envs.base.legged_robot_tracjectory_tracking import Cfg
     from go1_gym.envs.go1.go1_config import config_go1
-    from go1_gym.envs.go1.velocity_tracking import VelocityTrackingEasyEnv
-  
+    from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
+
     # from ml_logger import logger
 
     from go1_gym_learn.ppo_cse import Runner
@@ -19,14 +19,18 @@ def train_go1(headless=True):
 
     config_go1(Cfg)
 
-    Cfg.commands.num_lin_vel_bins = 30
+    # Cfg.env.num_observations = 45
+    # Cfg.env.num_scalar_observations = 45
+
+    
+    """ Cfg.commands.num_lin_vel_bins = 30
     Cfg.commands.num_ang_vel_bins = 30
     Cfg.curriculum_thresholds.tracking_ang_vel = 0.7
     Cfg.curriculum_thresholds.tracking_lin_vel = 0.8
     Cfg.curriculum_thresholds.tracking_contacts_shaped_vel = 0.90
-    Cfg.curriculum_thresholds.tracking_contacts_shaped_force = 0.90
+    Cfg.curriculum_thresholds.tracking_contacts_shaped_force = 0.90 """
 
-    Cfg.commands.distributional_commands = True
+    """ Cfg.commands.distributional_commands = True """
 
     Cfg.domain_rand.lag_timesteps = 6
     Cfg.domain_rand.randomize_lag_timesteps = True
@@ -77,15 +81,15 @@ def train_go1(headless=True):
     Cfg.env.priv_observe_gravity_transformed_foot_displacement = False
 
     Cfg.env.num_privileged_obs = 2
-    Cfg.env.num_observation_history = 30
+    Cfg.env.num_observation_history = 5
     Cfg.reward_scales.feet_contact_forces = 0.0
 
     Cfg.domain_rand.rand_interval_s = 4
-    Cfg.commands.num_commands = 15
+    """ Cfg.commands.num_commands = 15 """
     Cfg.env.observe_two_prev_actions = True
     Cfg.env.observe_yaw = False
-    Cfg.env.num_observations = 70
-    Cfg.env.num_scalar_observations = 70
+    Cfg.env.num_observations = 61
+    Cfg.env.num_scalar_observations = 61
     Cfg.env.observe_gait_commands = True
     Cfg.env.observe_timing_parameter = False
     Cfg.env.observe_clock_inputs = True
@@ -95,7 +99,7 @@ def train_go1(headless=True):
     Cfg.domain_rand.tile_height_update_interval = 1000000
     Cfg.domain_rand.tile_height_curriculum_step = 0.01
     Cfg.terrain.border_size = 0.0
-    Cfg.terrain.mesh_type = "trimesh"
+    """ Cfg.terrain.mesh_type = "trimesh" """
     Cfg.terrain.num_cols = 30
     Cfg.terrain.num_rows = 30
     Cfg.terrain.terrain_width = 5.0
@@ -112,10 +116,11 @@ def train_go1(headless=True):
     Cfg.rewards.terminal_body_height = 0.05
     Cfg.rewards.use_terminal_roll_pitch = True
     Cfg.rewards.terminal_body_ori = 1.6
+    Cfg.rewards.base_height_target = 0.30
 
-    Cfg.commands.resampling_time = 10
+    """ Cfg.commands.resampling_time = 10 """
 
-    Cfg.reward_scales.feet_slip = -0.04
+    """ Cfg.reward_scales.feet_slip = -0.04
     Cfg.reward_scales.action_smoothness_1 = -0.1
     Cfg.reward_scales.action_smoothness_2 = -0.1
     Cfg.reward_scales.dof_vel = -1e-4
@@ -142,16 +147,16 @@ def train_go1(headless=True):
     Cfg.rewards.gait_vel_sigma = 10.
     Cfg.reward_scales.tracking_contacts_shaped_force = 4.0
     Cfg.reward_scales.tracking_contacts_shaped_vel = 4.0
-    Cfg.reward_scales.collision = -5.0
+    Cfg.reward_scales.collision = -5.0 """
 
-    Cfg.rewards.reward_container_name = "CoRLRewards"
+    """ Cfg.rewards.reward_container_name = "CoRLRewards" """
     Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.only_positive_rewards_ji22_style = True
     Cfg.rewards.sigma_rew_neg = 0.02
 
 
 
-    Cfg.commands.lin_vel_x = [-1.0, 1.0]
+    """ Cfg.commands.lin_vel_x = [-1.0, 1.0]
     Cfg.commands.lin_vel_y = [-0.6, 0.6]
     Cfg.commands.ang_vel_yaw = [-1.0, 1.0]
     Cfg.commands.body_height_cmd = [-0.25, 0.15]
@@ -193,23 +198,26 @@ def train_go1(headless=True):
     Cfg.commands.num_bins_footswing_height = 1
     Cfg.commands.num_bins_body_roll = 1
     Cfg.commands.num_bins_body_pitch = 1
-    Cfg.commands.num_bins_stance_width = 1
+    Cfg.commands.num_bins_stance_width = 1 """
 
     Cfg.normalization.friction_range = [0, 1]
     Cfg.normalization.ground_friction_range = [0, 1]
     Cfg.terrain.yaw_init_range = 3.14
     Cfg.normalization.clip_actions = 10.0
 
-    Cfg.commands.exclusive_phase_offset = False
+    """ Cfg.commands.exclusive_phase_offset = False
     Cfg.commands.pacing_offset = False
     Cfg.commands.binary_phases = True
-    Cfg.commands.gaitwise_curricula = True
+    Cfg.commands.gaitwise_curricula = True """
+    
+    Cfg.terrain.mesh_type = "plane"
 
-    env = VelocityTrackingEasyEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
+    env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
 
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))
+    # import os; os.environ['WANDB_SILENT']="true"
     wandb.init(project="go1_gym", config=vars(Cfg))
 
     env = HistoryWrapper(env)

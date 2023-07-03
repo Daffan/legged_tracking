@@ -1,4 +1,5 @@
 # License: see [LICENSE, LICENSES/legged_gym/LICENSE]
+import numpy as np
 
 from params_proto import PrefixProto, ParamsProto
 
@@ -9,7 +10,7 @@ class Cfg(PrefixProto, cli=False):
         num_observations = 235
         num_scalar_observations = 42
         # if not None a privilige_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise
-        num_privileged_obs = 18
+        num_privileged_obs = 6
         privileged_future_horizon = 1
         num_actions = 12
         num_observation_history = 15
@@ -36,6 +37,7 @@ class Cfg(PrefixProto, cli=False):
         debug_viz = False
         all_agents_share = False
 
+        observe_height_map = False
         priv_observe_friction = True
         priv_observe_friction_indep = True
         priv_observe_ground_friction = False
@@ -61,8 +63,10 @@ class Cfg(PrefixProto, cli=False):
         priv_observe_desired_contact_states = False
         priv_observe_dummy_variable = False
 
+        terminate_end_of_trajectory = False
+
     class terrain(PrefixProto, cli=False):
-        mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'plane'  # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1  # [m]
         vertical_scale = 0.005  # [m]
         border_size = 0  # 25 # [m]
@@ -101,6 +105,31 @@ class Cfg(PrefixProto, cli=False):
         center_robots = False
         center_span = 5
 
+    class commands(PrefixProto, cli=False):
+        switch_upon_reach = True  # switch waypoint when current waypoint is reached
+        plan_interval = 0.5  # if switch_upon_reach is False, switch every plan_interval seconds
+
+        traj_function = "fixed_target"  # in ["fixed_target", "random_target"]
+        traj_length = 10    
+        num_interpolation = 1
+        # fixed target parameqters
+        base_x = 0.2
+        base_y = 0.0
+        base_z = 0.29
+        base_roll = 0
+        base_pitch = 0
+        base_yaw = 0
+        # random target parameters
+        x_range = 0.5
+        y_range = 0.5
+        z_range = 0  # 0.1
+        roll_range = 0  # 30 * np.pi / 180
+        pitch_range = 0  # 30 * np.pi / 180
+        yaw_range = 0  # 180 * np.pi / 180
+
+        # for inference vel obs
+        global_reference = False
+    """
     class commands(PrefixProto, cli=False):
         command_curriculum = False
         max_reverse_curriculum = 1.
@@ -191,6 +220,7 @@ class Cfg(PrefixProto, cli=False):
         pacing_offset = False
         balance_gait_distribution = True
         gaitwise_curricula = True
+    """
 
     class curriculum_thresholds(PrefixProto, cli=False):
         tracking_lin_vel = 0.8  # closer to 1 is tighter
@@ -242,6 +272,9 @@ class Cfg(PrefixProto, cli=False):
 
     class domain_rand(PrefixProto, cli=False):
         rand_interval_s = 10
+        randomize_motor_strength = True
+        randomize_motor_offset = True
+        motor_offset_range = [-0.02, 0.02]
         randomize_rigids_after_start = True
         randomize_friction = True
         friction_range = [0.5, 1.25]  # increase range
@@ -271,65 +304,36 @@ class Cfg(PrefixProto, cli=False):
 
     class rewards(PrefixProto, cli=False):
         only_positive_rewards = True  # if true negative total rewards are clipped at zero (avoids early termination problems)
+        
+        # not used for now
         only_positive_rewards_ji22_style = False
         sigma_rew_neg = 5
-        reward_container_name = "CoRLRewards"
-        tracking_sigma = 0.25  # tracking reward = exp(-error^2/sigma)
-        tracking_sigma_lat = 0.25  # tracking reward = exp(-error^2/sigma)
-        tracking_sigma_long = 0.25  # tracking reward = exp(-error^2/sigma)
-        tracking_sigma_yaw = 0.25  # tracking reward = exp(-error^2/sigma)
-        soft_dof_pos_limit = 1.  # percentage of urdf limits, values above this limit are penalized
-        soft_dof_vel_limit = 1.
-        soft_torque_limit = 1.
-        base_height_target = 1.
-        max_contact_force = 100.  # forces above this value are penalized
-        use_terminal_body_height = False
-        terminal_body_height = 0.20
-        use_terminal_foot_height = False
-        terminal_foot_height = -0.005
-        use_terminal_roll_pitch = False
-        terminal_body_ori = 0.5
-        kappa_gait_probs = 0.07
-        gait_force_sigma = 50.
-        gait_vel_sigma = 0.5
-        footswing_height = 0.09
+        
+        reward_container_name = "TrajectoryTrackingRewards"
+        # parameters for reward functions
+        target_lin_vel = 0.25
+        lin_reaching_criterion = 0.01
+        tracking_sigma_lin = 0.05
+
+        target_ang_vel = np.pi / 2
+        ang_reaching_criterion = np.pi / 20.
+        tracking_sigma_ang = 0.5
+
+        use_terminal_body_height = True
+        terminal_body_height = 0.05
 
     class reward_scales(ParamsProto, cli=False):
-        termination = -0.0
-        tracking_lin_vel = 1.0
-        tracking_ang_vel = 0.5
-        lin_vel_z = -2.0
-        ang_vel_xy = -0.05
-        orientation = -0.
-        torques = -0.00001
-        dof_vel = -0.
+        torques = -0.00001  # -0.0002
         dof_acc = -2.5e-7
-        base_height = -0.
-        feet_air_time = 1.0
         collision = -1.
-        feet_stumble = -0.0
         action_rate = -0.01
-        stand_still = -0.
-        tracking_lin_vel_lat = 0.
-        tracking_lin_vel_long = 0.
-        tracking_contacts = 0.
-        tracking_contacts_shaped = 0.
-        tracking_contacts_shaped_force = 0.
-        tracking_contacts_shaped_vel = 0.
-        jump = 0.0
-        energy = 0.0
-        energy_expenditure = 0.0
-        survival = 0.0
-        dof_pos_limits = 0.0
-        feet_contact_forces = 0.
-        feet_slip = 0.
-        feet_clearance_cmd_linear = 0.
-        dof_pos = 0.
-        action_smoothness_1 = 0.
-        action_smoothness_2 = 0.
-        base_motion = 0.
-        feet_impact_vel = 0.0
-        raibert_heuristic = 0.0
+
+        reaching_linear_vel = 1.2  # 0.6
+        reaching_z = -10.0
+        # reaching_roll = -0.5
+        # reaching_pitch = -0.5
+        reaching_yaw = 0.6  # 0.3
+        # dof_pos_limits = -10.0
 
     class normalization(PrefixProto, cli=False):
         clip_observations = 100.
