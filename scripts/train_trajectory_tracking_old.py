@@ -5,7 +5,7 @@ def train_go1(headless=True):
     import torch
     import wandb
 
-    from go1_gym.envs.base.legged_robot_tracjectory_tracking import Cfg
+    from go1_gym.envs.base.legged_robot_tracjectory_tracking_old import Cfg
     from go1_gym.envs.go1.go1_config import config_go1
     from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
