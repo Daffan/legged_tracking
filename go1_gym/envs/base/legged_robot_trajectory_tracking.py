@@ -109,9 +109,9 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[::self.num_actor][:self.num_envs, 10:13])
         self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        self.foot_velocities = self.rigid_body_state.view(self.num_envs, self.num_bodies, 13
+        self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13
                                                           )[:, self.feet_indices, 7:10]
-        self.foot_positions = self.rigid_body_state.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices,
+        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
                               0:3]
 
         self._post_physics_step_callback()
@@ -140,6 +140,7 @@ class LeggedRobot(BaseTask):
         """
         self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1.,
                                    dim=1)
+        # import ipdb; ipdb.set_trace()
         self.time_out_buf = self.episode_length_buf > self.cfg.env.max_episode_length  # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
         if self.cfg.rewards.use_terminal_body_height:
@@ -175,6 +176,8 @@ class LeggedRobot(BaseTask):
         # trajectory needs to be resampled after reset so that the origin matches the current position
         self._resample_trajectory(env_ids)
 
+        episode_length_buf = self.episode_length_buf.float().clone().detach()
+
         # reset buffers
         self.last_actions[env_ids] = 0.
         self.last_last_actions[env_ids] = 0.
@@ -190,6 +193,7 @@ class LeggedRobot(BaseTask):
                 self.extras["train/episode"]['rew_' + key] = torch.mean(
                     self.episode_sums[key][train_env_ids])
                 self.episode_sums[key][train_env_ids] = 0.
+            self.extras["train/episode"]['episode_length'] = torch.mean(episode_length_buf[train_env_ids])
         eval_env_ids = env_ids[env_ids >= self.num_train_envs]
         if len(eval_env_ids) > 0:
             self.extras["eval/episode"] = {}
@@ -198,6 +202,7 @@ class LeggedRobot(BaseTask):
                 unset_eval_envs = eval_env_ids[self.episode_sums_eval[key][eval_env_ids] == -1]
                 self.episode_sums_eval[key][unset_eval_envs] = self.episode_sums[key][unset_eval_envs]
                 self.episode_sums[key][eval_env_ids] = 0.
+            self.extras["eval/episode"]['episode_length'] = torch.mean(episode_length_buf[eval_env_ids])
 
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf[:self.num_train_envs]
@@ -458,7 +463,6 @@ class LeggedRobot(BaseTask):
 
         assert self.privileged_obs_buf.shape[
                    1] == self.cfg.env.num_privileged_obs, f"num_privileged_obs ({self.cfg.env.num_privileged_obs}) != the number of privileged observations ({self.privileged_obs_buf.shape[1]}), you will discard data from the student!"
-        import ipdb; ipdb.set_trace()
 
     def create_sim(self):
         """ Creates simulation, terrain and evironments
@@ -925,25 +929,27 @@ class LeggedRobot(BaseTask):
         self.root_states = gymtorch.wrap_tensor(actor_root_state)
         # self.robot_states = self.root_states[::self.num_actor, :]
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
-        self.net_contact_forces = gymtorch.wrap_tensor(net_contact_forces)[:self.num_envs * self.num_bodies, :]
+        # self.net_contact_forces = gymtorch.wrap_tensor(net_contact_forces)[:self.num_envs * self.num_bodies, :]
+        # self.net_contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3)  # [:self.num_envs * self.num_bodies, :]
         self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
         self.base_pos = self.root_states[::self.num_actor][:self.num_envs, 0:3]
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[::self.num_actor][:self.num_envs, 3:7]
-        self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_state)[:self.num_envs * self.num_bodies, :]
-        self.foot_velocities = self.rigid_body_state.view(self.num_envs, self.num_bodies, 13)[:,
+        self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_state)
+        self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13)[:,
                                self.feet_indices,
                                7:10]
-        self.foot_positions = self.rigid_body_state.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices,
+        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
                               0:3]
         self.prev_base_pos = self.base_pos.clone()
         self.prev_foot_velocities = self.foot_velocities.clone()
 
         self.lag_buffer = [torch.zeros_like(self.dof_pos) for i in range(self.cfg.domain_rand.lag_timesteps+1)]
 
-        self.contact_forces = gymtorch.wrap_tensor(net_contact_forces)[:self.num_envs * self.num_bodies, :].view(self.num_envs, -1,
-                                                                            3)  # shape: num_envs, num_bodies, xyz axis
-
+        # self.contact_forces = gymtorch.wrap_tensor(net_contact_forces)[:self.num_envs * self.num_bodies, :].view(self.num_envs, -1,
+        #                                                                     3)  # shape: num_envs, num_bodies, xyz axis
+        self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
+        # import ipdb; ipdb.set_trace()
         # initialize some data used later on
         self.common_step_counter = 0
         self.extras = {}
@@ -1189,13 +1195,6 @@ class LeggedRobot(BaseTask):
              3. Store indices of different bodies of the robot
         """
         # Arrow asset for visualizing the target pose
-        asset_options = gymapi.AssetOptions()
-        asset_options.fix_base_link = True
-        asset_options.disable_gravity = False
-        asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
-        arrow_asset_root = os.path.join(MINI_GYM_ROOT_DIR, "resources/robots", "arrow")
-        arrow_asset_file = "arrow.urdf"
-        arrow_asset = self.gym.load_asset(self.sim, arrow_asset_root, arrow_asset_file, asset_options)
 
         asset_path = self.cfg.asset.file.format(MINI_GYM_ROOT_DIR=MINI_GYM_ROOT_DIR)
         asset_root = os.path.dirname(asset_path)
@@ -1222,6 +1221,14 @@ class LeggedRobot(BaseTask):
         self.num_bodies = self.gym.get_asset_rigid_body_count(self.robot_asset)
         dof_props_asset = self.gym.get_asset_dof_properties(self.robot_asset)
         rigid_shape_props_asset = self.gym.get_asset_rigid_shape_properties(self.robot_asset)
+
+        asset_options = gymapi.AssetOptions()
+        asset_options.fix_base_link = True
+        asset_options.disable_gravity = False
+        asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
+        arrow_asset_root = os.path.join(MINI_GYM_ROOT_DIR, "resources/robots", "arrow")
+        arrow_asset_file = "arrow.urdf"
+        arrow_asset = self.gym.load_asset(self.sim, arrow_asset_root, arrow_asset_file, asset_options)
 
         # save body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(self.robot_asset)
@@ -1303,6 +1310,7 @@ class LeggedRobot(BaseTask):
             self.termination_contact_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0],
                                                                                         self.actor_handles[0],
                                                                                         termination_contact_names[i])
+        # import ipdb; ipdb.set_trace()
         # if recording video, set up camera
         if self.cfg.env.record_video:
             self.camera_props = gymapi.CameraProperties()
