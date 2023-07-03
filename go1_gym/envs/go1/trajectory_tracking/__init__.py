@@ -21,7 +21,7 @@ class TrajectoryTrackingEnv(LeggedRobot):
     def step(self, actions):
         self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras = super().step(actions)
 
-        self.foot_positions = self.rigid_body_state.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices,
+        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
                                0:3]
 
         self.extras.update({
