@@ -17,6 +17,20 @@ def train_go1(headless=True):
     from go1_gym_learn.ppo_cse.ppo import PPO_Args
     from go1_gym_learn.ppo_cse import RunnerArgs
 
+    import random
+    import numpy as np
+    import torch
+    import os
+
+    seed = 11
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
     config_go1(Cfg)
 
     '''

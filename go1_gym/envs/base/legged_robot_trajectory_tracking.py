@@ -175,6 +175,8 @@ class LeggedRobot(BaseTask):
         # trajectory needs to be resampled after reset so that the origin matches the current position
         self._resample_trajectory(env_ids)
 
+        episode_length_buf = self.episode_length_buf.clone()
+
         # reset buffers
         self.last_actions[env_ids] = 0.
         self.last_last_actions[env_ids] = 0.
@@ -190,6 +192,7 @@ class LeggedRobot(BaseTask):
                 self.extras["train/episode"]['rew_' + key] = torch.mean(
                     self.episode_sums[key][train_env_ids])
                 self.episode_sums[key][train_env_ids] = 0.
+            self.extras["train/episode"]["episode_length"] = torch.mean(episode_length_buf[train_env_ids].float())
         eval_env_ids = env_ids[env_ids >= self.num_train_envs]
         if len(eval_env_ids) > 0:
             self.extras["eval/episode"] = {}
@@ -198,6 +201,7 @@ class LeggedRobot(BaseTask):
                 unset_eval_envs = eval_env_ids[self.episode_sums_eval[key][eval_env_ids] == -1]
                 self.episode_sums_eval[key][unset_eval_envs] = self.episode_sums[key][unset_eval_envs]
                 self.episode_sums[key][eval_env_ids] = 0.
+            self.extras["eval/episode"]["episode_length"] = torch.mean(episode_length_buf[eval_env_ids].float())
 
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf[:self.num_train_envs]
