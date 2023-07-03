@@ -16,9 +16,9 @@ class TrajectoryFunctions:
         # return tractories of shape (num_envs, traj_length, 6)
         tcfg = self.env.cfg.commands
         x = torch.arange(tcfg.traj_length, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_x
-        x += self.env.root_states[env_ids, 0:1]
+        x += self.env.root_states[::self.env.num_actor][env_ids, 0:1]
         y = torch.arange(tcfg.traj_length, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_y
-        y += self.env.root_states[env_ids, 1:2]
+        y += self.env.root_states[::self.env.num_actor][env_ids, 1:2]
         z = torch.zeros_like(x) + tcfg.base_z
         yaw = torch.ones_like(x) * tcfg.base_yaw
         pitch = torch.zeros_like(x) + tcfg.base_pitch
@@ -47,5 +47,5 @@ class TrajectoryFunctions:
         target_pose_interp = torch.stack([target_pose[:-1] + (i+1) * delta for i in range(num_interp)], dim=1)
         target_pose_interp = target_pose_interp.reshape(*env_ids.shape, -1, 6)
 
-        target_pose_interp[:, :3] += self.env.root_states[env_ids, :3]
+        target_pose_interp[:, :3] += self.env.root_states[::self.env.num_actor][env_ids, :3]
         return target_pose_interp[1:]  # (num_envs, traj_length, 6)
