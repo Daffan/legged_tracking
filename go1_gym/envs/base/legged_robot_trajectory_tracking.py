@@ -12,7 +12,7 @@ import torch
 from go1_gym import MINI_GYM_ROOT_DIR
 from go1_gym.envs.base.base_task import BaseTask
 from go1_gym.utils.math_utils import quat_apply_yaw, wrap_to_pi, get_scale_shift, quat_without_yaw, quaternion_to_roll_pitch_yaw, quat_apply_yaw_inverse
-from go1_gym.utils.terrain import Terrain
+from go1_gym.utils.tunnel import Terrain
 from .legged_robot_trajectory_tracking_config import Cfg
 from go1_gym.envs.trajectories.trajectory_function import TrajectoryFunctions
 
@@ -140,11 +140,11 @@ class LeggedRobot(BaseTask):
         """
         self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1.,
                                    dim=1)
-        # import ipdb; ipdb.set_trace()
         self.time_out_buf = self.episode_length_buf > self.cfg.env.max_episode_length  # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
         if self.cfg.rewards.use_terminal_body_height:
-            self.body_height_buf = torch.mean(self.root_states[::self.num_actor][:, 2].unsqueeze(1) - self.measured_heights, dim=1) \
+            # TODO: height to the floor should consider floor height
+            self.body_height_buf = torch.mean(self.root_states[::self.num_actor][:, 2].unsqueeze(1), dim=1) \
                                    < self.cfg.rewards.terminal_body_height
             self.reset_buf = torch.logical_or(self.body_height_buf, self.reset_buf)
 
@@ -298,6 +298,10 @@ class LeggedRobot(BaseTask):
                                       self.dof_vel[:, :self.num_actuated_dof] * self.obs_scales.dof_vel,
                                       self.actions
                                       ), dim=-1)
+            
+        if self.cfg.env.observe_heights:
+            self.obs_buf = torch.cat((self.obs_buf,
+                                      self.measured_heights.view(self.num_train_envs, -1)), dim=-1)
 
         if self.cfg.env.observe_two_prev_actions:
             self.obs_buf = torch.cat((self.obs_buf,
@@ -474,16 +478,15 @@ class LeggedRobot(BaseTask):
         mesh_type = self.cfg.terrain.mesh_type
         if mesh_type in ['heightfield', 'trimesh']:
             if self.eval_cfg is not None:
+                # TODO: add eval terrain later
                 self.terrain = Terrain(self.cfg.terrain, self.num_train_envs, self.eval_cfg.terrain, self.num_eval_envs)
             else:
                 self.terrain = Terrain(self.cfg.terrain, self.num_train_envs)
-        if mesh_type == 'plane':
-            self._create_ground_plane()
-        elif mesh_type == 'heightfield':
-            self._create_heightfield()
-        elif mesh_type == 'trimesh':
+
+        self._create_ground_plane()
+        if mesh_type == 'trimesh':
             self._create_trimesh()
-        elif mesh_type is not None:
+        elif mesh_type not in [None, "plane"]:
             raise ValueError("Terrain mesh type not recognised. Allowed types are [None, plane, heightfield, trimesh]")
 
         self._create_envs()
@@ -658,7 +661,8 @@ class LeggedRobot(BaseTask):
         # resample commands
         # Update the realtive target poses at every timestep
         env_ids = torch.arange(self.num_envs).to(self.device)
-        self._compute_relative_target_pose(self.trajectories[env_ids, self.curr_pose_index[env_ids], :])
+        self.target_pose = self._plan_target_pose(env_ids)
+        self._compute_relative_target_pose(self.target_pose)
         env_ids = torch.arange(self.num_envs).to(self.device)
         self.commands = torch.cat([
             self.relative_linear[:, :2],  # relative x, y
@@ -667,8 +671,8 @@ class LeggedRobot(BaseTask):
         ], axis=-1)
 
         # measure terrain heights
-        if self.cfg.terrain.measure_heights:
-            self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device), self.cfg)
+        if self.cfg.env.observe_heights:
+            self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device))
 
         # push robots
         self._call_train_eval(self._push_robots, torch.arange(self.num_envs, device=self.device))
@@ -700,6 +704,11 @@ class LeggedRobot(BaseTask):
         self.reached_buf = torch.logical_and(self.switched_buf, self.curr_pose_index==self.cfg.commands.traj_length-1)
         # self._resample_trajectory(env_ids)
 
+    def _plan_target_pose(self, env_ids):
+        # No planning, directly use the goal as the target pose
+        target_pose = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
+        return target_pose
+
     def _compute_relative_target_pose(self, target_poses):
         """ Computes the relative pose of the target with respect to the body
         Args:
@@ -709,7 +718,22 @@ class LeggedRobot(BaseTask):
         self.relative_linear = quat_apply_yaw_inverse(self.base_quat, relative_linear)
         relative_rotation = target_poses[:, 3:] - quaternion_to_roll_pitch_yaw(self.base_quat)
         self.relative_rotation = wrap_to_pi(relative_rotation)
-        # self._set_the_target_pose_visual(torch.arange(self.num_envs, device=self.device))
+        self._set_the_target_pose_visual(torch.arange(self.num_envs, device=self.device))
+
+    def _set_the_target_pose_visual(self, env_ids):
+        """ This function sets the visualization of the target pose 
+            with a green coordinate frame.
+        """
+        linear = self.trajectories[env_ids, self.curr_pose_index[env_ids], :3]
+        rotation = self.trajectories[env_ids, self.curr_pose_index[env_ids], 3:]
+        arrow_actor_ids = (env_ids + 1) * self.num_actor - 1
+        self.root_states[arrow_actor_ids, :3] = linear
+        target_quat = quat_from_euler_xyz(rotation[:, 0], rotation[:, 1], rotation[:, 2])
+        self.root_states[arrow_actor_ids, 3:7] = target_quat
+        arrow_actor_ids_int32 = to_torch(arrow_actor_ids, dtype=torch.int32, device=self.device)
+        self.gym.set_actor_root_state_tensor_indexed(self.sim,
+                                                     gymtorch.unwrap_tensor(self.root_states),
+                                                     gymtorch.unwrap_tensor(arrow_actor_ids_int32), len(arrow_actor_ids_int32))
 
     def _resample_trajectory(self, env_ids):
         # if there is a curriculum, it should be updated here
@@ -777,7 +801,7 @@ class LeggedRobot(BaseTask):
                                               gymtorch.unwrap_tensor(self.dof_state),
                                               gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
 
-    def _reset_root_states(self, env_ids, cfg):
+    def _reset_root_states(self, env_ids, cfg: Cfg):
         """ Resets ROOT states position and velocities of selected environmments
             Sets base position based on the curriculum
             Selects randomized base velocities within -0.5:0.5 [m/s, rad/s]
@@ -872,6 +896,10 @@ class LeggedRobot(BaseTask):
                                        self.num_actuated_dof) * noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel,
                                    torch.zeros(self.num_actions),
                                    ), dim=0)
+        if self.cfg.env.observe_heights:
+            noise_vec = torch.cat((noise_vec,
+                                   torch.zeros(2 * np.prod(self.height_points.shape[1:3]))
+                                   ), dim=0)
         if self.cfg.env.observe_two_prev_actions:
             noise_vec = torch.cat((noise_vec,
                                    torch.zeros(self.num_actions)
@@ -949,13 +977,12 @@ class LeggedRobot(BaseTask):
         # self.contact_forces = gymtorch.wrap_tensor(net_contact_forces)[:self.num_envs * self.num_bodies, :].view(self.num_envs, -1,
         #                                                                     3)  # shape: num_envs, num_bodies, xyz axis
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
-        # import ipdb; ipdb.set_trace()
         # initialize some data used later on
         self.common_step_counter = 0
         self.extras = {}
 
-        if self.cfg.terrain.measure_heights:
-            self.height_points = self._init_height_points(torch.arange(self.num_envs, device=self.device), self.cfg)
+        if self.cfg.env.observe_heights:
+            self.height_points = self._init_height_points()
         self.measured_heights = 0
 
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)  # , self.eval_cfg)
@@ -1144,46 +1171,27 @@ class LeggedRobot(BaseTask):
         plane_params.dynamic_friction = self.cfg.terrain.dynamic_friction
         plane_params.restitution = self.cfg.terrain.restitution
         self.gym.add_ground(self.sim, plane_params)
-
-    def _create_heightfield(self):
-        """ Adds a heightfield terrain to the simulation, sets parameters based on the cfg.
-        """
-        hf_params = gymapi.HeightFieldParams()
-        hf_params.column_scale = self.terrain.cfg.horizontal_scale
-        hf_params.row_scale = self.terrain.cfg.horizontal_scale
-        hf_params.vertical_scale = self.terrain.cfg.vertical_scale
-        hf_params.nbRows = self.terrain.tot_cols
-        hf_params.nbColumns = self.terrain.tot_rows
-        hf_params.transform.p.x = -self.terrain.cfg.border_size
-        hf_params.transform.p.y = -self.terrain.cfg.border_size
-        hf_params.transform.p.z = 0.0
-        hf_params.static_friction = self.cfg.terrain.static_friction
-        hf_params.dynamic_friction = self.cfg.terrain.dynamic_friction
-        hf_params.restitution = self.cfg.terrain.restitution
-
-        print(self.terrain.heightsamples.shape, hf_params.nbRows, hf_params.nbColumns)
-
-        self.gym.add_heightfield(self.sim, self.terrain.heightsamples.T, hf_params)
-        self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows,
-                                                                            self.terrain.tot_cols).to(self.device)
-
+        
     def _create_trimesh(self):
         """ Adds a triangle mesh terrain to the simulation, sets parameters based on the cfg.
         # """
         tm_params = gymapi.TriangleMeshParams()
-        tm_params.nb_vertices = self.terrain.vertices.shape[0]
-        tm_params.nb_triangles = self.terrain.triangles.shape[0]
-
-        tm_params.transform.p.x = -self.terrain.cfg.border_size
-        tm_params.transform.p.y = -self.terrain.cfg.border_size
+        tm_params.transform.p.x = 0.0
+        tm_params.transform.p.y = 0.0
         tm_params.transform.p.z = 0.0
         tm_params.static_friction = self.cfg.terrain.static_friction
         tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction
         tm_params.restitution = self.cfg.terrain.restitution
-        self.gym.add_triangle_mesh(self.sim, self.terrain.vertices.flatten(order='C'),
-                                   self.terrain.triangles.flatten(order='C'), tm_params)
-        self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows,
-                                                                            self.terrain.tot_cols).to(self.device)
+
+        for terrain_origin, vtb, ttb in zip((self.terrain.terrain_origins).reshape(-1, 3), self.terrain.vertices, self.terrain.triangles):
+            for v, t in zip(vtb, ttb):
+                tm_params.nb_vertices = v.shape[0]
+                tm_params.nb_triangles = t.shape[0]
+                tm_params.transform.p.x = terrain_origin[0] 
+                tm_params.transform.p.y = terrain_origin[1]
+                self.gym.add_triangle_mesh(self.sim, v.flatten(order='C'), t.flatten(order='C'), tm_params)
+        self.height_samples = torch.tensor(self.terrain.height_field_raw).view(2, self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
+
 
     def _create_envs(self):
         """ Creates environments:
@@ -1310,7 +1318,6 @@ class LeggedRobot(BaseTask):
             self.termination_contact_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0],
                                                                                         self.actor_handles[0],
                                                                                         termination_contact_names[i])
-        # import ipdb; ipdb.set_trace()
         # if recording video, set up camera
         if self.cfg.env.record_video:
             self.camera_props = gymapi.CameraProperties()
@@ -1395,36 +1402,44 @@ class LeggedRobot(BaseTask):
             return []
         return self.complete_video_frames_eval
 
-    def _get_env_origins(self, env_ids, cfg):
+    def _get_env_origins(self, env_ids, cfg: Cfg):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
             Otherwise create a grid.
         """
+
         if cfg.terrain.mesh_type in ["heightfield", "trimesh"]:
+            # if tunnel is not empty
+            # env origin depends on the tunnel
+            r = torch.tensor(range(self.cfg.terrain.num_rows)).to(self.device).to(torch.long)
+            c = torch.tensor(range(self.cfg.terrain.num_cols)).to(self.device).to(torch.long)
+            grid_r, grid_c = torch.meshgrid(r, c)
+            assert self.num_envs % (self.cfg.terrain.num_rows * self.cfg.terrain.num_cols) == 0
+            m = self.num_envs // (self.cfg.terrain.num_rows * self.cfg.terrain.num_cols)
+            grid_r = grid_r.flatten() #.detach().cpu().numpy()
+            grid_c = grid_c.flatten() #.detach().cpu().numpy()
+            self.grid_r = grid_r.repeat(m); self.grid_c = grid_c.repeat(m)
+
             self.custom_origins = True
-            # put robots at the origins defined by the terrain
-            max_init_level = cfg.terrain.max_init_terrain_level
-            min_init_level = cfg.terrain.min_init_terrain_level
-            if not cfg.terrain.curriculum: max_init_level = cfg.terrain.num_rows - 1
-            if not cfg.terrain.curriculum: min_init_level = 0
-            if cfg.terrain.center_robots:
-                min_terrain_level = cfg.terrain.num_rows // 2 - cfg.terrain.center_span
-                max_terrain_level = cfg.terrain.num_rows // 2 + cfg.terrain.center_span - 1
-                min_terrain_type = cfg.terrain.num_cols // 2 - cfg.terrain.center_span
-                max_terrain_type = cfg.terrain.num_cols // 2 + cfg.terrain.center_span - 1
-                self.terrain_levels[env_ids] = torch.randint(min_terrain_level, max_terrain_level + 1, (len(env_ids),),
-                                                             device=self.device)
-                self.terrain_types[env_ids] = torch.randint(min_terrain_type, max_terrain_type + 1, (len(env_ids),),
-                                                            device=self.device)
-            else:
-                self.terrain_levels[env_ids] = torch.randint(min_init_level, max_init_level + 1, (len(env_ids),),
-                                                            device=self.device)
-                self.terrain_types[env_ids] = torch.div(torch.arange(len(env_ids), device=self.device),
-                                                    (len(env_ids) / cfg.terrain.num_cols), rounding_mode='floor').to(
-                    torch.long)
-            cfg.terrain.max_terrain_level = cfg.terrain.num_rows
-            cfg.terrain.terrain_origins = torch.from_numpy(cfg.terrain.env_origins).to(self.device).to(torch.float)
-            self.env_origins[env_ids] = cfg.terrain.terrain_origins[
-                self.terrain_levels[env_ids], self.terrain_types[env_ids]]
+            self.env_origins = torch.zeros(self.num_envs, 3, device=self.device, requires_grad=False)
+            self.env_height_samples = torch.zeros(
+                self.num_envs, 2,
+                self.terrain.length_per_env_pixels,
+                self.terrain.width_per_env_pixels, 
+                device=self.device, requires_grad=False
+            )  # (num_envs, top_bottom, length, width)
+            self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
+
+            self.env_origins[:] = self.terrain_origins[self.grid_r, self.grid_c]
+            self.env_height_samples[:] = torch.from_numpy(
+                self.terrain.height_samples_by_row_col * self.terrain.vertical_scale
+            ).to(self.device).to(torch.float)[self.grid_r, self.grid_c]
+
+            # global elevation_map
+            start_x = int((0.5 - self.terrain.terrain_ratio_x/2.) * self.terrain.length_per_env_pixels)
+            end_x = int((0.5 + self.terrain.terrain_ratio_x/2.) * self.terrain.length_per_env_pixels)
+            start_y = int((0.5 - self.terrain.terrain_ratio_y/2.) * self.terrain.width_per_env_pixels)
+            end_y = int((0.5 + self.terrain.terrain_ratio_y/2.) * self.terrain.width_per_env_pixels)
+            self.global_elevation_map = self.env_height_samples[:, start_x: end_x, start_y: end_y]
         else:
             self.custom_origins = False
             # create a grid of robots
@@ -1479,54 +1494,53 @@ class LeggedRobot(BaseTask):
                 sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
                 gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[i], sphere_pose)
 
-    def _init_height_points(self, env_ids, cfg):
+    def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)
 
         Returns:
-            [torch.Tensor]: Tensor of shape (num_envs, self.num_height_points, 3)
+            [torch.Tensor]: Tensor of shape (num_envs, pixel x, pixel y, 3)
         """
-        y = torch.tensor(cfg.terrain.measured_points_y, device=self.device, requires_grad=False)
-        x = torch.tensor(cfg.terrain.measured_points_x, device=self.device, requires_grad=False)
+        y = torch.tensor(self.cfg.terrain.measured_points_y, device=self.device, requires_grad=False)
+        x = torch.tensor(self.cfg.terrain.measured_points_x, device=self.device, requires_grad=False)
         grid_x, grid_y = torch.meshgrid(x, y)
 
-        cfg.env.num_height_points = grid_x.numel()
-        points = torch.zeros(len(env_ids), cfg.env.num_height_points, 3, device=self.device, requires_grad=False)
-        points[:, :, 0] = grid_x.flatten()
-        points[:, :, 1] = grid_y.flatten()
-        return points
+        self.elevation_map_shape = grid_x.shape
+        points = torch.zeros(self.num_envs, *grid_x.shape, 3, device=self.device, requires_grad=False)
+        points[:, :, :, 0] = grid_x
+        points[:, :, :, 1] = grid_y
+        return points  # shape (num_envs, pixel x, pixel y, 3)
 
-    def _get_heights(self, env_ids, cfg):
+    def _get_heights(self, env_ids):
         """ Samples heights of the terrain at required points around each robot.
             The points are offset by the base's position and rotated by the base's yaw
 
         Args:
             env_ids (List[int], optional): Subset of environments for which to return the heights. Defaults to None.
 
-        Raises:
-            NameError: [description]
-
         Returns:
-            [type]: [description]
+            heights: height point measurement of shape (num_envs, 2, num_pixel_x, num_pixel_y)
         """
-        if cfg.terrain.mesh_type == 'plane':
-            return torch.zeros(len(env_ids), cfg.env.num_height_points, device=self.device, requires_grad=False)
-        elif cfg.terrain.mesh_type == 'none':
-            raise NameError("Can't measure height with terrain mesh type 'none'")
+        if self.cfg.terrain.mesh_type == "plane":
+            # Dummy heights maps
+            top_heights = torch.ones(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False) * 0.5  # sufficient space at the top
+            bottom_heights = torch.zeros(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False) # sufficient space at the top
+            heights = torch.stack([top_heights, bottom_heights], dim=1)
+        else:
+            points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            points += self.root_states[::self.num_actor][env_ids, None, None, :3]
 
-        points = quat_apply_yaw(self.base_quat[env_ids].repeat(1, cfg.env.num_height_points),
-                                self.height_points[env_ids]) + (self.root_states[::self.num_actor][env_ids, :3]).unsqueeze(1)
+            points = (points / self.terrain.cfg.horizontal_scale).long()
+            px = points[..., 0]
+            py = points[..., 1]
+            px = torch.clip(px, 0, self.env_height_samples.shape[2]-2)
+            py = torch.clip(py, 0, self.env_height_samples.shape[3]-2)
 
-        points += self.terrain.cfg.border_size
-        points = (points / self.terrain.cfg.horizontal_scale).long()
-        px = points[:, :, 0].view(-1)
-        py = points[:, :, 1].view(-1)
-        px = torch.clip(px, 0, self.height_samples.shape[0] - 2)
-        py = torch.clip(py, 0, self.height_samples.shape[1] - 2)
+            heights1 = torch.stack([self.env_height_samples[env_id, :, px[env_id], py[env_id]] for env_id in env_ids], dim=0)
+            heights2 = torch.stack([self.env_height_samples[env_id, :, px[env_id]+1, py[env_id]] for env_id in env_ids], dim=0)
+            heights3 = torch.stack([self.env_height_samples[env_id, :, px[env_id], py[env_id]+1] for env_id in env_ids], dim=0)
 
-        heights1 = self.height_samples[px, py]
-        heights2 = self.height_samples[px + 1, py]
-        heights3 = self.height_samples[px, py + 1]
-        heights = torch.min(heights1, heights2)
-        heights = torch.min(heights, heights3)
+            heights = torch.min(heights1, heights2)
+            heights = torch.min(heights, heights3)
+            heights = heights * self.terrain.vertical_scale
 
-        return heights.view(len(env_ids), -1) * self.terrain.cfg.vertical_scale
+        return heights

@@ -15,9 +15,9 @@ class TrajectoryFunctions:
         # fixed delta x, y between waypoints as specified by the config
         # return tractories of shape (num_envs, traj_length, 6)
         tcfg = self.env.cfg.commands
-        x = torch.arange(tcfg.traj_length, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_x
+        x = torch.arange(1, tcfg.traj_length+1, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_x
         x += self.env.root_states[::self.env.num_actor][env_ids, 0:1]
-        y = torch.arange(tcfg.traj_length, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_y
+        y = torch.arange(1, tcfg.traj_length+1, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_y
         y += self.env.root_states[::self.env.num_actor][env_ids, 1:2]
         z = torch.zeros_like(x) + tcfg.base_z
         yaw = torch.ones_like(x) * tcfg.base_yaw
@@ -41,11 +41,11 @@ class TrajectoryFunctions:
         roll = torch.rand((*env_ids.shape, num_targets), device=self.env.device) * 2 * tcfg.roll_range - tcfg.roll_range
 
         target_pose = torch.stack([x, y, z, roll, pitch, yaw], dim=2)  # (num_envs, num_targets, 6)
-        target_pose[: 0, :] = 0  # set the first target to be the current pose
+        target_pose[:, 0, :] = 0  # set the first target to be the current pose
 
-        delta = (target_pose[1:] - target_pose[:-1]) / num_interp
-        target_pose_interp = torch.stack([target_pose[:-1] + (i+1) * delta for i in range(num_interp)], dim=1)
+        delta = (target_pose[:, 1:, :] - target_pose[:, :-1, :]) / num_interp
+        target_pose_interp = torch.stack([target_pose[:, :-1] + (i+1) * delta for i in range(num_interp)], dim=2)
         target_pose_interp = target_pose_interp.reshape(*env_ids.shape, -1, 6)
 
-        target_pose_interp[:, :3] += self.env.root_states[::self.env.num_actor][env_ids, :3]
-        return target_pose_interp[1:]  # (num_envs, traj_length, 6)
+        target_pose_interp[:, :, :3] += self.env.root_states[::self.env.num_actor][env_ids, :3][:, None, :]
+        return target_pose_interp  # (num_envs, traj_length, 6)

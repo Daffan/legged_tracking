@@ -229,12 +229,15 @@ def train_go1(headless=True):
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))
-    wandb.init(project="go1_gym", config=vars(Cfg))
+    log_wandb = True
+    # import ipdb; ipdb.set_trace()
+    if log_wandb:
+        wandb.init(project="go1_gym", config=vars(Cfg))
 
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}")
-    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100, log_wandb=log_wandb)
 
 
 if __name__ == '__main__':

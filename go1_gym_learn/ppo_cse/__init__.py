@@ -106,11 +106,11 @@ class Runner:
         self.tot_timesteps = 0
         self.tot_time = 0
         self.current_learning_iteration = 0
-        self.last_recording_it = 0
+        self.last_recording_it = -1000
 
         self.env.reset()
 
-    def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, curriculum_dump_freq=500, eval_expert=False):
+    def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, curriculum_dump_freq=500, eval_expert=False, log_wandb=True):
         # initialize writer
         # assert logger.prefix, "you will overwrite the entire instrument server"
 
@@ -158,12 +158,12 @@ class Runner:
                         self.device), obs_history.to(self.device), rewards.to(self.device), dones.to(self.device)
                     self.alg.process_env_step(rewards[:num_train_envs], dones[:num_train_envs], infos)
 
-                    if 'train/episode' in infos:
+                    if 'train/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="train/episode"):
                         #     logger.store_metrics(**infos['train/episode'])
                         wandb.log({"train": infos['train/episode']})
 
-                    if 'eval/episode' in infos:
+                    if 'eval/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="eval/episode"):
                         #     logger.store_metrics(**infos['eval/episode'])
                         wandb.log({"eval": infos['eval/episode']})
@@ -197,7 +197,7 @@ class Runner:
                 start = stop
                 self.alg.compute_returns(obs_history[:num_train_envs], privileged_obs[:num_train_envs])
 
-                if it % curriculum_dump_freq == 0:
+                if it % curriculum_dump_freq == 0 and log_wandb:
                     if not os.path.exists(os.path.join(wandb.run.dir, "curriculum")):
                         os.makedirs(os.path.join(wandb.run.dir, "curriculum"))
                     save_path = os.path.join(wandb.run.dir, "curriculum/info.pkl")
@@ -231,9 +231,10 @@ class Runner:
                 mean_decoder_test_loss_student=mean_decoder_test_loss_student,
                 mean_adaptation_module_test_loss=mean_adaptation_module_test_loss
             )
-            wandb.log({"metrics": store_metrics})
+            if log_wandb:
+                wandb.log({"metrics": store_metrics})
 
-            if RunnerArgs.save_video_interval:
+            if RunnerArgs.save_video_interval and log_wandb:
                 self.log_video(it)
 
             self.tot_timesteps += self.num_steps_per_env * self.env.num_envs
@@ -263,8 +264,9 @@ class Runner:
                 traced_script_body_module = torch.jit.script(body_model)
                 traced_script_body_module.save(body_path)
 
-                wandb.save(adaptation_module_path, base_path=path)
-                wandb.save(body_path, base_path=path)
+                if log_wandb:
+                    wandb.save(adaptation_module_path, base_path=path)
+                    wandb.save(body_path, base_path=path)
 
             self.current_learning_iteration += num_learning_iterations
 
@@ -286,8 +288,9 @@ class Runner:
         traced_script_body_module = torch.jit.script(body_model)
         traced_script_body_module.save(body_path)
 
-        wandb.save(adaptation_module_path, base_path=path)
-        wandb.save(body_path, base_path=path)
+        if log_wandb:
+            wandb.save(adaptation_module_path, base_path=path)
+            wandb.save(body_path, base_path=path)
 
 
     def log_video(self, it):

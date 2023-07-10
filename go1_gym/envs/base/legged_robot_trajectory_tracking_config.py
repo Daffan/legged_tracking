@@ -16,13 +16,14 @@ class Cfg(PrefixProto, cli=False):
         env_spacing = 3.  # not used with heightfields/trimeshes
         send_timeouts = True  # send time out information to the algorithm
         episode_length_s = 20  # episode length in seconds
+        observe_heights = False
         observe_vel = True
         observe_only_ang_vel = False
         observe_only_lin_vel = False
         observe_yaw = False
         observe_contact_states = False
         observe_command = True
-        observe_height_command = False
+        observe_height_command = True
         observe_gait_commands = False
         observe_timing_parameter = False
         observe_clock_inputs = False
@@ -65,54 +66,59 @@ class Cfg(PrefixProto, cli=False):
 
     class terrain(PrefixProto, cli=False):
         mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
-        horizontal_scale = 0.1  # [m]
-        vertical_scale = 0.005  # [m]
-        border_size = 0  # 25 # [m]
-        curriculum = True
-        static_friction = 1.0
-        dynamic_friction = 1.0
-        restitution = 0.0
-        terrain_noise_magnitude = 0.1
-        # rough terrain only:
-        terrain_smoothness = 0.005
-        measure_heights = True
-        # 1mx1.6m rectangle (without center line)
-        measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
-        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
-        selected = False  # select a unique terrain type and pass all arguments
-        terrain_kwargs = None  # Dict of arguments for selected terrain
-        min_init_terrain_level = 0
-        max_init_terrain_level = 5  # starting curriculum state
-        terrain_length = 8.
-        terrain_width = 8.
-        num_rows = 10  # number of terrain rows (levels)
-        num_cols = 20  # number of terrain cols (types)
-        # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
-        # trimesh only:
-        slope_treshold = 0.75  # slopes above this threshold will be corrected to vertical surfaces
-        difficulty_scale = 1.
-        x_init_range = 1.
-        y_init_range = 1.
-        yaw_init_range = 0.
+        terrain_type = 'random_pyramid'  # in ["random", "random_pyramid"]
+        ceiling_height = 0.42
+
+        # if all zero, it is deterministic starting position
+        x_init_range = 0.
+        y_init_range = 0.
         x_init_offset = 0.
         y_init_offset = 0.
-        teleport_robots = True
-        teleport_thresh = 2.0
-        max_platform_height = 0.2
-        center_robots = False
-        center_span = 5
+        yaw_init_range = 0.  # in rad
+
+        # settings for ground
+        static_friction = 1.0
+        dynamic_friction = 1.0
+        restitution = 0.
+
+        terrain_ratio_x = 0.5
+        terrain_ratio_y = 0.5
+
+        terrain_length = 8.0
+        terrain_width = 3.6
+
+        terrain_border_ratio_x = 0.9
+        terrain_border_ratio_y = 0.5
+
+        num_rows = 1
+        num_cols = 1
+
+        horizontal_scale = 0.05
+        vertical_scale = 0.005
+
+        measured_points_x = np.linspace(-3, 3, 61)
+        measured_points_y = np.linspace(-2, 2, 41)
 
         terminate_end_of_trajectory = False
+
+        # settings for random_pyramid
+        pyramid_num_x=3
+        pyramid_num_y=5
+        pyramid_var_x=0.5
+        pyramid_var_y=0.3
+        pyramid_length_min=0.2
+        pyramid_length_max=0.4
+        pyramid_height_min=0.2
+        pyramid_height_max=0.4
 
     class commands(PrefixProto, cli=False):
         switch_upon_reach = True  # switch waypoint when current waypoint is reached
         plan_interval = 0.5  # if switch_upon_reach is False, switch every plan_interval seconds
         traj_function = "fixed_target"  # in ["fixed_target", "random_target"]
-        traj_length = 10    
+        traj_length = 1
         num_interpolation = 1
         # fixed target parameqters
-        base_x = 0.2
+        base_x = 5
         base_y = 0.0
         base_z = 0.29
         base_roll = 0
@@ -121,10 +127,10 @@ class Cfg(PrefixProto, cli=False):
         # random target parameters
         x_range = 0.5
         y_range = 0.5
-        z_range = 0  # 0.1
-        roll_range = 0  # 30 * np.pi / 180
-        pitch_range = 0  # 30 * np.pi / 180
-        yaw_range = 0  # 180 * np.pi / 180
+        z_range = 0.1  # 0.1
+        roll_range = 30 * np.pi / 180
+        pitch_range = 30 * np.pi / 180
+        yaw_range = 180 * np.pi / 180
         # for inference vel obs
         global_reference = False
 
