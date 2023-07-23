@@ -38,6 +38,11 @@ from scipy import interpolate
 from isaacgym import terrain_utils
 from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
 
+import jax.numpy as jnp
+from jax import jit
+import jax
+from functools import partial
+
 class Terrain:
     def __init__(self, cfg: Cfg.terrain, num_robots) -> None:
 
@@ -63,7 +68,7 @@ class Terrain:
         # Empty space by default has height points of 4 meters that does not block the robot
         self.height_field_raw = np.ones((2, self.tot_rows , self.tot_cols), dtype=np.int16) * int(1. / cfg.vertical_scale)
         self.height_field_env = []
-        self.height_samples_by_row_col = np.ones((2, cfg.num_rows, cfg.num_cols, self.length_per_env_pixels, self.width_per_env_pixels))
+        self.height_samples_by_row_col = np.ones((cfg.num_rows, cfg.num_cols, 2, self.length_per_env_pixels, self.width_per_env_pixels))
 
         for k in range(self.num_sub_terrains):
             # Env coordinates in the world
@@ -145,7 +150,7 @@ class Terrain:
         #self.height_field_raw[:, border_end_y] = int(0.15 / self.vertical_scale)
         
         self.height_field_env.append([terrain_top.height_field_raw, terrain_bottom.height_field_raw])
-        self.height_samples_by_row_col[:, i, j] = (
+        self.height_samples_by_row_col[i, j, :] = (
             self.height_field_raw[
                 :, 
                 i*self.length_per_env_pixels: (i+1)*self.length_per_env_pixels,
@@ -162,6 +167,26 @@ class Terrain:
         y2 = int((self.env_width/2. + 1) / self.horizontal_scale)
         env_origin_z = 0.02 # np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
+
+def vec_plane_from_points(p1, p2, p3, xy):
+    # p1, p2, p3: (num_pyramid, 4, 3)
+    # xy: (px, py, 2)
+    px, py = xy.shape[:2]
+    xy = xy.reshape(-1, 2)
+
+    v1 = p3 - p1
+    v2 = p3 - p2
+
+    cp = np.cross(v1, v2)
+    a, b, c = cp[..., 0], cp[..., 1], cp[..., 2]
+
+    d = np.sum(cp * p3, axis=-1)
+
+    assert np.all(c != 0)
+    heights = np.clip((d/c)[..., None] - (a/c)[..., None]*xy[..., 0] - (b/c)[..., None]*xy[..., 1], 0, a_max=np.inf)
+    heights = np.min(heights, axis=1)
+    heights = np.max(heights, axis=0)
+    return heights.reshape(px, py)
 
 def plane_from_points(p1, p2, p3):
     v1 = p3 - p1
@@ -210,13 +235,76 @@ def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0
         [3, 0, -1]
     ]
     wedge_points = wedge_points[:, idx, :]
+
+        # shape = (pixel_x, pixel_y, x_coord, y_coord)
+    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
+
+    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
+    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
+    
+    return terrain
+
+
+
+# ----------------- JAX -----------------
+
+def jit_plane_from_points(p1, p2, p3):
+    v1 = p3 - p1
+    v2 = p3 - p2
+
+    cp = jnp.cross(v1, v2)
+    a, b, c = cp
+
+    d = jnp.dot(cp, p3)
+
+    # assert c != 0
+    return lambda x, y: jnp.clip(d/c - a/c*x - b/c*y, 0, a_max=jnp.inf)
+
+def jit_pyramid_from_points(points):
+    """
+    points [np.ndarray]: in shape (4, 3, 3). 4 planes with each defined by 3 points in 3D space
+    """
+    return lambda x, y: jnp.stack([jit_plane_from_points(*ps)(x, y) for ps in points]).min(0)
+
+@partial(jax.jit, static_argnames=["terrain", "num_x", "num_y", "var_x", "var_y", "length_min", "length_max", "height_min", "height_max", "base_height"])
+def jit_random_pyramid(key, terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0.3, length_max=0.6, height_min=0.5, height_max=1.0, base_height=0.42):
+    pixel_x, pixel_y = terrain.height_field_raw.shape
+    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
+    keys = jax.random.split(key, 4)
+
+    mean_x = jnp.linspace(-l/2, l/2, num_x)
+    mean_y = jnp.linspace(-w/2, w/2, num_y)
+    mean_x, mean_y = jnp.meshgrid(mean_x, mean_y)
+    mean_x += jax.random.uniform(keys[0], minval=-var_x, maxval=var_x, shape=mean_x.shape)
+    mean_x = mean_x.clip(-l/2, l/2)
+    mean_y += jax.random.uniform(keys[1], minval=-var_y, maxval=var_y, shape=mean_y.shape)
+    mean_y = mean_y.clip(-w/2, w/2)
+    mean_z = jax.random.uniform(keys[2], minval=height_min, maxval=height_max, shape=mean_x.shape)
+    means = jnp.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
+
+    pw, pl = jax.random.uniform(keys[3], minval=length_min, maxval=length_max, shape=(2, len(means)))
+    wedge_points = jnp.stack([
+        jnp.stack([pw+means[:, 0], pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
+        jnp.stack([-pw+means[:, 0], pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
+        jnp.stack([-pw+means[:, 0], -pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
+        jnp.stack([pw+means[:, 0], -pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
+        means
+    ], axis=1)
+    idx = [
+        [0, 1, -1],
+        [1, 2, -1],
+        [2, 3, -1],
+        [3, 0, -1]
+    ]
+    wedge_points = wedge_points[:, idx, :]
     
 
     def f(x, y):
-        return max([pyramid_from_points(wps)(x, y) for wps in wedge_points])
+        return jnp.max(jnp.stack([jit_pyramid_from_points(wps)(x, y) for wps in wedge_points]))
 
-    for xi, x in enumerate(np.linspace(-l/2, l/2, pixel_x)):
-        for yi, y in enumerate(np.linspace(-w/2, w/2, pixel_y)):
-            terrain.height_field_raw[xi, yi] = int(f(x, y) / terrain.vertical_scale)
+    height_field_raw = jnp.zeros_like(terrain.height_field_raw)
+    for xi, x in enumerate(jnp.linspace(-l/2, l/2, pixel_x)):
+        for yi, y in enumerate(jnp.linspace(-w/2, w/2, pixel_y)):
+            height_field_raw = height_field_raw.at[xi, yi].set(f(x, y))
     
-    return terrain
+    return height_field_raw

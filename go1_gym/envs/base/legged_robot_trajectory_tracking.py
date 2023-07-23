@@ -71,6 +71,7 @@ class LeggedRobot(BaseTask):
         self.prev_base_lin_vel = self.base_lin_vel.clone()
         self.prev_foot_velocities = self.foot_velocities.clone()
         self.render_gui()
+
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.actions).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
@@ -113,7 +114,7 @@ class LeggedRobot(BaseTask):
                                                           )[:, self.feet_indices, 7:10]
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
                               0:3]
-
+        
         self._post_physics_step_callback()
 
         # compute observations, rewards, resets, ...
@@ -352,6 +353,8 @@ class LeggedRobot(BaseTask):
         # add noise if needed
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
+
+        assert self.obs_buf.shape[1] == self.cfg.env.num_observations, f"Observation shape {self.obs_buf.shape} does not match num_observations {self.cfg.env.num_observations}"
 
         # build privileged obs
 
@@ -660,19 +663,18 @@ class LeggedRobot(BaseTask):
 
         # resample commands
         # Update the realtive target poses at every timestep
+        # measure terrain heights
+        if self.cfg.env.observe_heights:
+            self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device))
+
         env_ids = torch.arange(self.num_envs).to(self.device)
-        self.target_pose = self._plan_target_pose(env_ids)
-        self._compute_relative_target_pose(self.target_pose)
-        env_ids = torch.arange(self.num_envs).to(self.device)
+        self.target_poses = self._plan_target_pose(env_ids)
+        self._compute_relative_target_pose(self.target_poses)
         self.commands = torch.cat([
             self.relative_linear[:, :2],  # relative x, y
             self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
             self.relative_rotation[:, 2:]  # relative yaw
         ], axis=-1)
-
-        # measure terrain heights
-        if self.cfg.env.observe_heights:
-            self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device))
 
         # push robots
         self._call_train_eval(self._push_robots, torch.arange(self.num_envs, device=self.device))
@@ -696,7 +698,7 @@ class LeggedRobot(BaseTask):
             switched_buf = torch.linalg.norm(self.relative_linear[:, :2], dim=1) < 0.05
             self.switched_buf = torch.logical_and(switched_buf, self.relative_rotation[:, 2].abs() < (torch.pi/3.0))
         else:
-            self.switched_buf = (self.episode_length_buf % self.cfg.commands.plan_interval == 0)
+            self.switched_buf = (self.episode_length_buf % self.cfg.commands.switch_interval == 0)
         env_ids = self.switched_buf.nonzero(as_tuple=False).flatten()
         self.curr_pose_index[env_ids] += 1
         # cap to traj_length
@@ -706,8 +708,44 @@ class LeggedRobot(BaseTask):
 
     def _plan_target_pose(self, env_ids):
         # No planning, directly use the goal as the target pose
-        target_pose = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
-        return target_pose
+        if not self.cfg.commands.sampling_based_planning:
+            target_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
+        else:
+            # sampling-based planning
+            if self.last_plan_step > 0 and self.last_plan_step < self.cfg.commands.plan_interval:
+                self.last_plan_step += 1
+                target_poses = self.target_poses
+            else:
+                self.last_plan_step = 1
+                target_poses = []
+                for env_id in env_ids:
+                    # """ 
+                    goal_pose = self.trajectories[env_id, self.curr_pose_index[env_id]]
+                    goal_pose[:2] -= self.base_pos[env_id, :2]
+                    candidate_target_poses_env = self.candidate_target_poses.clone()
+                    """ 
+                    # sort by distance to goal pose
+                    idxs = torch.argsort(
+                        torch.linalg.norm(candidate_target_poses_env[:, :3] - goal_pose[:3], dim=1) + \
+                        torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 0.1  # penality for rotation
+                    , dim=-1)
+                    candidate_target_poses_env = candidate_target_poses_env[idxs, :] """
+                    candidate_target_poses_linear = candidate_target_poses_env[:, :3]
+                    candidate_target_poses_quat = quat_from_euler_xyz(candidate_target_poses_env[:, 3], candidate_target_poses_env[:, 4], candidate_target_poses_env[:, 5])
+                    height_points = self.height_points[env_id, None, ...].repeat(2, 1, 1, 1)  # (2, 21, 11, 3)
+                    height_points[..., 2] = self.measured_heights[env_id]
+                    height_points_cand = height_points.view(-1, 1, 3).repeat(1, len(candidate_target_poses_env), 1)
+                    height_points_cand -= candidate_target_poses_linear[None, :, :]
+                    height_points_cand = quat_apply_yaw(candidate_target_poses_quat[None, :, :].repeat(height_points_cand.shape[0], 1, 1), height_points_cand)
+                    height_points_cand = torch.norm(height_points_cand / self.robot_size[None, None, :], dim=-1) > 1.0
+                    cands_idx = torch.any(height_points_cand, dim=0)
+                    target_pose_env = candidate_target_poses_env[cands_idx, :][0]
+                    target_pose_env[:2] += self.base_pos[env_id, :2]
+                    target_poses.append(target_pose_env)
+                    # """
+                    # target_poses.append(self.candidate_target_poses[0, :])
+                target_poses = torch.stack(target_poses, dim=0)
+        return target_poses
 
     def _compute_relative_target_pose(self, target_poses):
         """ Computes the relative pose of the target with respect to the body
@@ -979,10 +1017,13 @@ class LeggedRobot(BaseTask):
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         # initialize some data used later on
         self.common_step_counter = 0
+        self.last_plan_step = 0
         self.extras = {}
+        self.robot_size = torch.tensor([0.3762, 0.0935, 0.114]).to(self.device).float()
+        self.candidate_target_poses = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
 
-        if self.cfg.env.observe_heights:
-            self.height_points = self._init_height_points()
+        # if self.cfg.env.observe_heights:
+        self.height_points = self._init_height_points()
         self.measured_heights = 0
 
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)  # , self.eval_cfg)
@@ -1352,12 +1393,24 @@ class LeggedRobot(BaseTask):
     def _render_headless(self):
         if self.record_now and self.complete_video_frames is not None and len(self.complete_video_frames) == 0:
             bx, by, bz = self.root_states[0, 0], self.root_states[0, 1], self.root_states[0, 2]
-            self.gym.set_camera_location(self.rendering_camera, self.envs[0], gymapi.Vec3(bx, by - 1.0, bz + 1.0),
-                                         gymapi.Vec3(bx, by, bz))
+            if self.cfg.env.look_from_back:
+                pos_target = torch.tensor([
+                [-0.295-0.1, 0, 0.35],
+                [0, 0, 0.25]
+                ], device=self.device)
+                # Right now it does not rotate with the robot
+                # pos_target = quat_apply_yaw(self.base_quat[[0]*2], pos_target)
+                pos_target[:, :2] += self.robot_states[0, :2]
+                self.gym.set_camera_location(self.rendering_camera, self.envs[0], pos_target[0], pos_target[1])
+            else:
+                self.gym.set_camera_location(self.rendering_camera, self.envs[0], gymapi.Vec3(bx, by - 1.0, bz + 1.0),
+                                            gymapi.Vec3(bx, by, bz))
             self.video_frame = self.gym.get_camera_image(self.sim, self.envs[0], self.rendering_camera,
                                                          gymapi.IMAGE_COLOR)
             self.video_frame = self.video_frame.reshape((self.camera_props.height, self.camera_props.width, 4))
             self.video_frames.append(self.video_frame)
+
+            self.height_frame = self.measured_heights.detach().cpu().numpy()
 
         if self.record_eval_now and self.complete_video_frames_eval is not None and len(
                 self.complete_video_frames_eval) == 0:
@@ -1413,7 +1466,7 @@ class LeggedRobot(BaseTask):
             r = torch.tensor(range(self.cfg.terrain.num_rows)).to(self.device).to(torch.long)
             c = torch.tensor(range(self.cfg.terrain.num_cols)).to(self.device).to(torch.long)
             grid_r, grid_c = torch.meshgrid(r, c)
-            assert self.num_envs % (self.cfg.terrain.num_rows * self.cfg.terrain.num_cols) == 0
+            assert self.num_envs % (self.cfg.terrain.num_rows * self.cfg.terrain.num_cols) == 0, (self.num_envs, self.cfg.terrain.num_rows, self.cfg.terrain.num_cols)
             m = self.num_envs // (self.cfg.terrain.num_rows * self.cfg.terrain.num_cols)
             grid_r = grid_r.flatten() #.detach().cpu().numpy()
             grid_c = grid_c.flatten() #.detach().cpu().numpy()
@@ -1527,6 +1580,7 @@ class LeggedRobot(BaseTask):
             heights = torch.stack([top_heights, bottom_heights], dim=1)
         else:
             points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            # points = self.height_points[env_ids].clone()  # if we don;t transform, does it run faster?
             points += self.root_states[::self.num_actor][env_ids, None, None, :3]
 
             points = (points / self.terrain.cfg.horizontal_scale).long()

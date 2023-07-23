@@ -96,8 +96,8 @@ class Cfg(PrefixProto, cli=False):
         horizontal_scale = 0.05
         vertical_scale = 0.005
 
-        measured_points_x = np.linspace(-3, 3, 61)
-        measured_points_y = np.linspace(-2, 2, 41)
+        measured_points_x = np.linspace(-1, 1, 21)
+        measured_points_y = np.linspace(-0.5, 0.5, 11)
 
         terminate_end_of_trajectory = False
 
@@ -113,7 +113,7 @@ class Cfg(PrefixProto, cli=False):
 
     class commands(PrefixProto, cli=False):
         switch_upon_reach = True  # switch waypoint when current waypoint is reached
-        plan_interval = 0.5  # if switch_upon_reach is False, switch every plan_interval seconds
+        switch_interval = 0.5  # if switch_upon_reach is False, switch every plan_interval seconds
         traj_function = "fixed_target"  # in ["fixed_target", "random_target"]
         traj_length = 1
         num_interpolation = 1
@@ -133,6 +133,19 @@ class Cfg(PrefixProto, cli=False):
         yaw_range = 180 * np.pi / 180
         # for inference vel obs
         global_reference = False
+
+        sampling_based_planning = False
+        plan_interval = 10  # replan every plan_interval steps
+        candidate_target_poses = np.stack(np.meshgrid(
+            np.linspace(0.5, 0.5, 1), # x
+            # np.array([0, -0.15, 0.15, -0.3, 0.3]), # y
+            np.array([0, -0.3, 0.3]), # y
+            np.array([0.29, 0.27, 0.31, 0.25, 0.23]), # z
+            np.array([0, -15, +15]) * np.pi / 180, # roll
+            np.array([0, -15, +15]) * np.pi / 180, # pitch
+            np.array([0, -22.5, +22.5, -45, +45]) * np.pi / 180, # yaw
+        ), axis=-1).reshape(-1, 6)  # (num_cands=1125, xyz+rotation=6) in robot frame  
+
 
     class curriculum_thresholds(PrefixProto, cli=False):
         tracking_lin_vel = 0.8  # closer to 1 is tighter

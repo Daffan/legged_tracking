@@ -49,7 +49,28 @@ class TrajectoryTrackingRewards:
         out_of_limits += (self.env.dof_pos - self.env.dof_pos_limits[:, 1]).clip(min=0.)
         return torch.sum(out_of_limits, dim=1)
     
-    # ------------ reward functions (old) ----------------
+    # ------------ reward functions (end to end) ----------------
+    def _reward_task(self):
+        task_reward = 1 / (1 + torch.norm(self.env.relative_linear[:, :2], dim=1)) / self.env.cfg.rewards.T_reach
+        task_reward *= self.env.episode_length_buf > self.env.cfg.rewards.T_reach
+        return task_reward
+    
+    def _reward_exploration(self):
+        r = torch.sum(
+            self.env.base_lin_vel[:, :2] * \
+            self.env.relative_linear[:, :2]
+        , dim=1)
+        r /= (torch.norm(self.env.relative_linear[:, :2], dim=1) + EPSILON)
+        r /= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) + EPSILON)
+        return r
+    
+    def _reward_stalling(self):
+        small_vel = torch.norm(self.env.base_lin_vel[:, :2], dim=1) < self.env.cfg.rewards.small_vel_threshold
+        large_dist = torch.norm(self.env.relative_linear[:, :2], dim=1) > self.env.cfg.rewards.large_dist_threshold
+        return - (small_vel * large_dist).float()
+
+    
+    # ------------ reward functions (trajectory tracking) ----------------
     def _reward_reaching_linear_vel(self):
         """ rewarding the linear velocity to be close to
             the specified target velocity toward the target pose

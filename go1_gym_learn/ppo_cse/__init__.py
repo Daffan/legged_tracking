@@ -65,11 +65,12 @@ class RunnerArgs(PrefixProto, cli=False):
 
 class Runner:
 
-    def __init__(self, env, device='cpu'):
+    def __init__(self, env, device='cpu', runner_args=RunnerArgs):
         from .ppo import PPO
 
         self.device = device
         self.env = env
+        self.runner_args = runner_args
 
         actor_critic = ActorCritic(self.env.num_obs,
                                       self.env.num_privileged_obs,
@@ -77,7 +78,7 @@ class Runner:
                                       self.env.num_actions,
                                       ).to(self.device)
 
-        if RunnerArgs.resume:
+        if runner_args.resume:
             # load pretrained weights from resume_path
             # from ml_logger import ML_Logger
 
@@ -87,7 +88,7 @@ class Runner:
             weights = loader.load_torch("checkpoints/ac_weights_last.pt")
             actor_critic.load_state_dict(state_dict=weights)
 
-            if hasattr(self.env, "curricula") and RunnerArgs.resume_curriculum:
+            if hasattr(self.env, "curricula") and runner_args.resume_curriculum:
                 # load curriculum state
                 distributions = loader.load_pkl("curriculum/distribution.pkl")
                 distribution_last = distributions[-1]["distribution"]
@@ -97,7 +98,7 @@ class Runner:
                     print(gait_name)
 
         self.alg = PPO(actor_critic, device=self.device)
-        self.num_steps_per_env = RunnerArgs.num_steps_per_env
+        self.num_steps_per_env = runner_args.num_steps_per_env
 
         # init storage and model
         self.alg.init_storage(self.env.num_train_envs, self.num_steps_per_env, [self.env.num_obs],
@@ -161,7 +162,9 @@ class Runner:
                     if 'train/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="train/episode"):
                         #     logger.store_metrics(**infos['train/episode'])
-                        wandb.log({"train": infos['train/episode']})
+                        info = infos['train/episode']
+                        info["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - start)
+                        wandb.log({"train": info})
 
                     if 'eval/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="eval/episode"):
@@ -234,7 +237,7 @@ class Runner:
             if log_wandb:
                 wandb.log({"metrics": store_metrics})
 
-            if RunnerArgs.save_video_interval and log_wandb:
+            if self.runner_args.save_video_interval and log_wandb:
                 self.log_video(it)
 
             self.tot_timesteps += self.num_steps_per_env * self.env.num_envs
@@ -243,7 +246,7 @@ class Runner:
             #    logger.log_metrics_summary(key_values={"timesteps": self.tot_timesteps, "iterations": it})
             #    logger.job_running()
 
-            if it % RunnerArgs.save_interval == 0:
+            if it % self.runner_args.save_interval == 0:
                 # with logger.Sync():
                 if not os.path.exists("checkpoints"):
                     os.makedirs("checkpoints")
@@ -294,7 +297,7 @@ class Runner:
 
 
     def log_video(self, it):
-        if it - self.last_recording_it >= RunnerArgs.save_video_interval:
+        if it - self.last_recording_it >= self.runner_args.save_video_interval:
             self.env.start_recording()
             if self.env.num_eval_envs > 0:
                 self.env.start_recording_eval()
