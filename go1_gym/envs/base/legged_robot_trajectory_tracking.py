@@ -123,6 +123,7 @@ class LeggedRobot(BaseTask):
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
         self.compute_observations()
+        self.update_curriculum()
 
         self.last_last_actions[:] = self.last_actions[:]
         self.last_actions[:] = self.actions[:]
@@ -135,6 +136,12 @@ class LeggedRobot(BaseTask):
             self._draw_debug_vis()
 
         self._render_headless()
+
+    def update_curriculum(self):
+        if "exploration" in self.reward_scales and self.reward_scales["exploration"] > 0:
+            if self.common_step_counter > self.cfg.rewards.exploration_steps:
+                self.reward_scales["exploration"] -= 0.0002
+                print("Exploration reward disabled")
 
     def check_termination(self):
         """ Check if environments need to be reset
@@ -718,18 +725,17 @@ class LeggedRobot(BaseTask):
             else:
                 self.last_plan_step = 1
                 target_poses = []
+                goal_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids]]
                 for env_id in env_ids:
-                    # """ 
-                    goal_pose = self.trajectories[env_id, self.curr_pose_index[env_id]]
-                    goal_pose[:2] -= self.base_pos[env_id, :2]
-                    candidate_target_poses_env = self.candidate_target_poses.clone()
-                    """ 
+                    candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
+                    goal_pose = goal_poses[env_id]
+                    goal_pose[:2] -= self.base_pos[env_id, :2].clone()
                     # sort by distance to goal pose
                     idxs = torch.argsort(
                         torch.linalg.norm(candidate_target_poses_env[:, :3] - goal_pose[:3], dim=1) + \
                         torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 0.1  # penality for rotation
                     , dim=-1)
-                    candidate_target_poses_env = candidate_target_poses_env[idxs, :] """
+                    candidate_target_poses_env = candidate_target_poses_env[idxs, :]
                     candidate_target_poses_linear = candidate_target_poses_env[:, :3]
                     candidate_target_poses_quat = quat_from_euler_xyz(candidate_target_poses_env[:, 3], candidate_target_poses_env[:, 4], candidate_target_poses_env[:, 5])
                     height_points = self.height_points[env_id, None, ...].repeat(2, 1, 1, 1)  # (2, 21, 11, 3)
@@ -738,12 +744,10 @@ class LeggedRobot(BaseTask):
                     height_points_cand -= candidate_target_poses_linear[None, :, :]
                     height_points_cand = quat_apply_yaw(candidate_target_poses_quat[None, :, :].repeat(height_points_cand.shape[0], 1, 1), height_points_cand)
                     height_points_cand = torch.norm(height_points_cand / self.robot_size[None, None, :], dim=-1) > 1.0
-                    cands_idx = torch.any(height_points_cand, dim=0)
-                    target_pose_env = candidate_target_poses_env[cands_idx, :][0]
+                    cands_idx = torch.all(height_points_cand, dim=0)
+                    target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
                     target_pose_env[:2] += self.base_pos[env_id, :2]
                     target_poses.append(target_pose_env)
-                    # """
-                    # target_poses.append(self.candidate_target_poses[0, :])
                 target_poses = torch.stack(target_poses, dim=0)
         return target_poses
 
@@ -1020,7 +1024,6 @@ class LeggedRobot(BaseTask):
         self.last_plan_step = 0
         self.extras = {}
         self.robot_size = torch.tensor([0.3762, 0.0935, 0.114]).to(self.device).float()
-        self.candidate_target_poses = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
 
         # if self.cfg.env.observe_heights:
         self.height_points = self._init_height_points()
@@ -1400,8 +1403,11 @@ class LeggedRobot(BaseTask):
                 ], device=self.device)
                 # Right now it does not rotate with the robot
                 # pos_target = quat_apply_yaw(self.base_quat[[0]*2], pos_target)
-                pos_target[:, :2] += self.robot_states[0, :2]
-                self.gym.set_camera_location(self.rendering_camera, self.envs[0], pos_target[0], pos_target[1])
+                pos_target[:, :2] += self.root_states[0, :2]
+                self.gym.set_camera_location(
+                    self.rendering_camera, self.envs[0],
+                    gymapi.Vec3(*pos_target[0].detach().cpu().numpy()),
+                    gymapi.Vec3(*pos_target[1].detach().cpu().numpy()))
             else:
                 self.gym.set_camera_location(self.rendering_camera, self.envs[0], gymapi.Vec3(bx, by - 1.0, bz + 1.0),
                                             gymapi.Vec3(bx, by, bz))

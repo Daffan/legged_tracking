@@ -26,8 +26,6 @@ class TrajectoryTrackingRewards:
         # Penalize dof accelerations
 
         rew = torch.sum(torch.square((self.env.last_dof_vel - self.env.dof_vel) / self.env.dt), dim=1)
-        if torch.mean(rew) * 2.5e-7 > 1:
-            import ipdb; ipdb.set_trace()
         return rew
     
     def _reward_dof_pos(self):

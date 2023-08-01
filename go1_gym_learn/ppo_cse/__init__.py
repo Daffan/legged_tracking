@@ -138,6 +138,7 @@ class Runner:
         cur_episode_length = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
 
         tot_iter = self.current_learning_iteration + num_learning_iterations
+        very_start = time.time()
         for it in range(self.current_learning_iteration, tot_iter):
             start = time.time()
             # Rollout
@@ -163,7 +164,7 @@ class Runner:
                         # with logger.Prefix(metrics="train/episode"):
                         #     logger.store_metrics(**infos['train/episode'])
                         info = infos['train/episode']
-                        info["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - start)
+                        info["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - very_start)
                         wandb.log({"train": info})
 
                     if 'eval/episode' in infos and log_wandb:

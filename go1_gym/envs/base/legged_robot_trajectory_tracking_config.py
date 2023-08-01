@@ -36,6 +36,7 @@ class Cfg(PrefixProto, cli=False):
         num_recording_envs = 1
         debug_viz = False
         all_agents_share = False
+        look_from_back = False
 
         priv_observe_friction = True
         priv_observe_friction_indep = True
@@ -139,7 +140,7 @@ class Cfg(PrefixProto, cli=False):
         candidate_target_poses = np.stack(np.meshgrid(
             np.linspace(0.5, 0.5, 1), # x
             # np.array([0, -0.15, 0.15, -0.3, 0.3]), # y
-            np.array([0, -0.3, 0.3]), # y
+            np.array([0, -0.15, +0.15, -0.3, 0.3]), # y
             np.array([0.29, 0.27, 0.31, 0.25, 0.23]), # z
             np.array([0, -15, +15]) * np.pi / 180, # roll
             np.array([0, -15, +15]) * np.pi / 180, # pitch

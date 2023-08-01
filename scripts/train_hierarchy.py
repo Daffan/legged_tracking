@@ -87,7 +87,7 @@ def train_go1(headless=True):
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))
-    log_wandb = False
+    log_wandb = True
     if log_wandb:
         wandb.init(project="go1_gym", config=vars(Cfg))
 

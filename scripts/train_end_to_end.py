@@ -43,18 +43,26 @@ def train_go1(headless=True):
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
     Cfg.env.num_observation_history = 1
+    Cfg.env.look_from_back = True 
+
+    # asset
+    # change to not terminate on, but just penalize base contact, 
+    Cfg.asset.penalize_contacts_on = ["thigh", "calf"]
+    Cfg.asset.terminate_after_contacts_on = ["base"]
 
     # rewards
     Cfg.rewards.T_reach = 200
     Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.large_dist_threshold = 0.5
+    Cfg.rewards.exploration_steps = 8000
+    Cfg.rewards.only_positive_rewards = True
 
     # removing old rewards
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_z = 0
     Cfg.reward_scales.reaching_yaw = 0
     # adding new rewards
-    Cfg.reward_scales.task = 1
+    Cfg.reward_scales.task = 200
     Cfg.reward_scales.exploration = 1
     Cfg.reward_scales.stalling = 1
     Cfg.reward_scales.orientation = 0
@@ -63,13 +71,20 @@ def train_go1(headless=True):
     # terrain
     Cfg.terrain.num_cols = 20
     Cfg.terrain.num_rows = 20
+    Cfg.terrain.terrain_length = 5.0
+    Cfg.terrain.terrain_width = 3.2
+    Cfg.terrain.terrain_ratio_x = 0.5
     Cfg.terrain.terrain_ratio_y = 1.0
+    Cfg.terrain.pyramid_num_x=5
+    Cfg.terrain.pyramid_num_y=3
+    Cfg.terrain.pyramid_var_x=0.3
+    Cfg.terrain.pyramid_var_y=0.3
 
     # goal
     Cfg.commands.traj_function = "fixed_target"
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.base_x = 6.0
+    Cfg.commands.base_x = 3.75
 
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
     """ 
@@ -82,12 +97,12 @@ def train_go1(headless=True):
     print(1000 * 4000 / (time.time() - start))
     import ipdb; ipdb.set_trace() """
 
-    RunnerArgs.save_video_interval = 0
+    RunnerArgs.save_video_interval = 200
 
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))
-    log_wandb = False
+    log_wandb = True
     if log_wandb:
         wandb.init(project="go1_gym", config=vars(Cfg))
 
