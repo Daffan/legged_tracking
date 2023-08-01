@@ -1,5 +1,27 @@
 # Go1 Sim-to-Real Locomotion Starter Kit
 
+# Customization
+## New codes for trajectory tracking
+```
+├── go1_gym
+│   ├── envs
+│   │   ├── base
+│   │   │   ├── legged_robot_trajectory_tracking_config.py
+│   │   │   ├── legged_robot_trajectory_tracking.py
+│   │   ├── go1
+│   │   │   ├── trajectory_tracking
+│   │   │   │   └── __init__.py
+│   │   ├── rewards
+│   │   │   └── trajectory_tracking_reward.py
+│   └── utils
+│       └── tunnel.py
+├── scripts
+│   ├── train_end_to_end.py
+│   ├── train_hierarchy.py
+```
+
+## Deployment
+`go1_gym_deploy` is the code for deploying the policy on real robots. Since the customization, i am not sure my policies are directly runnable or not. I suggest trying `velocity_tracking` first. 
 
 # Table of contents
 1. [Overview](#overview)
