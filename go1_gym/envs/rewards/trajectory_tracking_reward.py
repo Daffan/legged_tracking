@@ -47,6 +47,10 @@ class TrajectoryTrackingRewards:
         out_of_limits += (self.env.dof_pos - self.env.dof_pos_limits[:, 1]).clip(min=0.)
         return torch.sum(out_of_limits, dim=1)
     
+    def _reward_orientation(self):
+        # Penalize non flat base orientation
+        return torch.sum(torch.square(self.env.projected_gravity[:, :2]), dim=1)
+    
     # ------------ reward functions (end to end) ----------------
     def _reward_task(self):
         task_reward = 1 / (1 + torch.norm(self.env.relative_linear[:, :2], dim=1)) / self.env.cfg.rewards.T_reach

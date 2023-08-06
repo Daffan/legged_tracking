@@ -144,6 +144,10 @@ class StateEstimator:
 
     def get_rpy(self):
         return self.euler
+    
+    def get_xy_yaw(self):
+        # ----------- Implement SLAM here ------------
+        return np.array([0.0, 0.0]), 0.0
 
     def get_command(self):
         MODES_LEFT = ["body_height", "lat_vel", "stance_width"]

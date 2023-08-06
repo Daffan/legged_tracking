@@ -141,7 +141,8 @@ class LeggedRobot(BaseTask):
         if "exploration" in self.reward_scales and self.reward_scales["exploration"] > 0:
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
                 self.reward_scales["exploration"] -= 0.0002
-                print("Exploration reward disabled")
+                if self.reward_scales["exploration"] <= 0:
+                    print("Exploration reward disabled")
 
     def check_termination(self):
         """ Check if environments need to be reset
@@ -309,7 +310,7 @@ class LeggedRobot(BaseTask):
             
         if self.cfg.env.observe_heights:
             self.obs_buf = torch.cat((self.obs_buf,
-                                      self.measured_heights.view(self.num_train_envs, -1)), dim=-1)
+                                      self.measured_heights.view(self.num_train_envs, -1)), dim=-1) * self.obs_scales.height_measurements
 
         if self.cfg.env.observe_two_prev_actions:
             self.obs_buf = torch.cat((self.obs_buf,
@@ -702,7 +703,7 @@ class LeggedRobot(BaseTask):
 
         # This setting switches the robot every fixed timestep intervals
         if self.cfg.commands.switch_upon_reach:
-            switched_buf = torch.linalg.norm(self.relative_linear[:, :2], dim=1) < 0.05
+            switched_buf = torch.linalg.norm(self.relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
             self.switched_buf = torch.logical_and(switched_buf, self.relative_rotation[:, 2].abs() < (torch.pi/3.0))
         else:
             self.switched_buf = (self.episode_length_buf % self.cfg.commands.switch_interval == 0)

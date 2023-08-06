@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 class CommandProfile:
@@ -18,6 +19,97 @@ class CommandProfile:
 
     def reset(self, reset_time):
         self.start_time = reset_time
+
+
+class RandomTrajectoryProfile(CommandProfile):
+    def __init__(
+        self, dt, state_estimator,
+        x_range = 0.5,
+        y_range = 0.5,
+        z_range = 0.1,  # 0.1
+        roll_range = 30 * np.pi / 180,
+        pitch_range = 30 * np.pi / 180,
+        yaw_range = 180 * np.pi / 180,
+        num_interpolation=10,
+        traj_length=10,
+        switch_upon_reach=False,
+        max_time_s=10.
+    ):
+        super().__init__(dt, max_time_s)
+        self.dt = dt
+        self.se = state_estimator
+        self.x_range = x_range
+        self.y_range = y_range
+        self.z_range = z_range
+        self.yaw_range = yaw_range
+        self.pitch_range = pitch_range
+        self.roll_range = roll_range
+        self.num_interpolation = num_interpolation
+        self.traj_length = traj_length
+        self.switch_upon_reach = switch_upon_reach
+        self.max_timestep = int(max_time_s / self.dt)
+
+        self.start_time = 0
+        self.trajectory = self._traj_fn_random_target()
+
+    def get_command(self, t):
+        xy, yaw = self.se.get_xy_yaw()  # xy: (2,), yaw: scalar
+        if not self.switch_upon_reach:
+            curr_timestep = int((t - self.start_time) / self.dt)
+            if curr_timestep >= self.max_timestep:
+                self.start_time = t
+                self.trajectory = self._traj_fn_random_target()
+                curr_timestep = 0
+                reset_timer = True
+            else:
+                reset_timer = False
+            curr_pose = self.trajectory[int(curr_timestep / self.max_timestep * len(self.trajectory)), :]
+
+            rel_xy = curr_pose[:2] - xy
+            rel_xy = self._apply_yaw_inverse(yaw, rel_xy)
+            rel_yaw = self._wrap_to_pi(curr_pose[5] - yaw)
+            return np.concatenate([rel_xy, curr_pose[2:5], [rel_yaw]]), reset_timer
+        else:
+            raise NotImplementedError
+    
+    def _apply_yaw_inverse(self, yaw, xy):
+        return np.array([
+            xy[0] * np.cos(yaw) + xy[1] * np.sin(yaw),
+            -xy[0] * np.sin(yaw) + xy[1] * np.cos(yaw)
+        ])
+    
+    def _wrap_to_pi(angles):
+        angles %= 2 * np.pi
+        angles -= 2 * np.pi * (angles > np.pi)
+        return angles
+
+    def _traj_fn_random_target(self):
+        # random delta x, y, z, raw, pitch, yaw between waypoints with interpolation
+        # return tractories of shape (num_envs, traj_length, 6)
+        num_interp = self.num_interpolation
+        assert self.traj_length % num_interp == 0  # for now...
+        num_targets = self.traj_length // num_interp + 1
+        
+        base_z = 0.29
+        x = np.random.uniform(num_targets) * 2 * self.x_range - self.x_range
+        y = np.random.uniform(num_targets) * 2 * self.y_range - self.y_range
+        z = np.random.uniform(num_targets) * 2 * self.z_range - self.z_range + base_z
+        yaw = np.random.uniform(num_targets) * 2 * self.yaw_range - self.yaw_range
+        pitch = np.random.uniform(num_targets) * 2 * self.pitch_range - self.pitch_range 
+        roll = np.random.uniform(num_targets) * 2 * self.roll_range - self.roll_range
+
+        target_pose = np.stack([x, y, z, roll, pitch, yaw], axis=1)  # (num_targets, 6)
+        target_pose[0, :] = 0  # set the first target to be the current pose
+
+        # iterpolation
+        delta = (target_pose[1:, :] - target_pose[:-1, :]) / num_interp
+        target_pose_interp = np.stack([target_pose[:, :-1] + (i+1) * delta for i in range(num_interp)], axis=1)
+        target_pose_interp = target_pose_interp.reshape(-1, 6)
+
+        # assuming starting from zero
+        xy, _ = self.se.get_xy_yaw()
+        target_pose_interp[:, :2] += xy.reshape(1, -1)
+        return target_pose_interp  # (traj_length, 6)
 
 
 class ConstantAccelerationProfile(CommandProfile):

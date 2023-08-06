@@ -1,7 +1,28 @@
 # Go1 Sim-to-Real Locomotion Starter Kit
 
 # Customization
-## New codes for trajectory tracking
+## To be implemented
+`go1_gym_deploy/envs/lcm_traj_agent.py` (line 152 - 159): get height measures
+
+`go1_gym_deploy/utils/cheetah_state_estimator.py` (line 148 - 150): get SLAM localization
+
+Once these are done, try `go1_gym_deploy/scripts/deploy_traj_policy.py`.
+
+## New codes for deploying trajectory tracking policy
+```
+├── go1_gym_deploy
+│   ├── envs
+│   │   ├── lcm_traj_agent.py
+│   ├── scripts
+│   │   ├── command_profile.py
+│   ├── utils
+│   │   ├── cheetah_state_estimator.py
+│   │   ├── deploy_traj_policy.py
+├── runs
+│   ├── trajectory_tracking
+│   │   ├── run-20230805_155941-z1hjplh8
+```
+## New codes for training trajectory tracking policy
 ```
 ├── go1_gym
 │   ├── envs

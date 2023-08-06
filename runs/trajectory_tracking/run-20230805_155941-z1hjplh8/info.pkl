@@ -1,0 +1,1 @@
+/u/zifan/legged_tracking/wandb/run-20230805_155941-z1hjplh8/files/curriculum/info.pkl

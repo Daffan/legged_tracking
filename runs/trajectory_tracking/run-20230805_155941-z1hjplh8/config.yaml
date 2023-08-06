@@ -1,0 +1,557 @@
+wandb_version: 1
+
+env:
+  desc: null
+  value:
+    num_envs: 4000
+    num_observations: 507
+    num_scalar_observations: 507
+    num_privileged_obs: 6
+    privileged_future_horizon: 1
+    num_actions: 12
+    num_observation_history: 1
+    env_spacing: 3.0
+    send_timeouts: true
+    episode_length_s: 20
+    observe_heights: true
+    observe_vel: false
+    observe_only_ang_vel: false
+    observe_only_lin_vel: false
+    observe_yaw: false
+    observe_contact_states: false
+    observe_command: true
+    observe_height_command: true
+    observe_gait_commands: false
+    observe_timing_parameter: false
+    observe_clock_inputs: false
+    observe_two_prev_actions: false
+    observe_imu: false
+    record_video: true
+    recording_width_px: 360
+    recording_height_px: 240
+    recording_mode: COLOR
+    num_recording_envs: 1
+    debug_viz: false
+    all_agents_share: false
+    look_from_back: false
+    priv_observe_friction: true
+    priv_observe_friction_indep: true
+    priv_observe_ground_friction: false
+    priv_observe_ground_friction_per_foot: false
+    priv_observe_restitution: true
+    priv_observe_base_mass: true
+    priv_observe_com_displacement: true
+    priv_observe_motor_strength: false
+    priv_observe_motor_offset: false
+    priv_observe_joint_friction: true
+    priv_observe_Kp_factor: true
+    priv_observe_Kd_factor: true
+    priv_observe_contact_forces: false
+    priv_observe_contact_states: false
+    priv_observe_body_velocity: false
+    priv_observe_foot_height: false
+    priv_observe_body_height: false
+    priv_observe_gravity: false
+    priv_observe_terrain_type: false
+    priv_observe_clock_inputs: false
+    priv_observe_doubletime_clock_inputs: false
+    priv_observe_halftime_clock_inputs: false
+    priv_observe_desired_contact_states: false
+    priv_observe_dummy_variable: false
+    terminate_end_of_trajectory: false
+    max_episode_length: 1001.0
+terrain:
+  desc: null
+  value:
+    mesh_type: plane
+    terrain_type: random_pyramid
+    ceiling_height: 0.42
+    x_init_range: 0.0
+    y_init_range: 0.0
+    x_init_offset: 0.0
+    y_init_offset: 0.0
+    yaw_init_range: 0.0
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+    terrain_ratio_x: 0.5
+    terrain_ratio_y: 0.5
+    terrain_length: 8.0
+    terrain_width: 3.6
+    terrain_border_ratio_x: 0.9
+    terrain_border_ratio_y: 0.5
+    num_rows: 1
+    num_cols: 1
+    horizontal_scale: 0.05
+    vertical_scale: 0.005
+    measured_points_x:
+    - -1.0
+    - -0.9
+    - -0.8
+    - -0.7
+    - -0.6
+    - -0.5
+    - -0.3999999999999999
+    - -0.29999999999999993
+    - -0.19999999999999996
+    - -0.09999999999999998
+    - 0.0
+    - 0.10000000000000009
+    - 0.20000000000000018
+    - 0.30000000000000004
+    - 0.40000000000000013
+    - 0.5
+    - 0.6000000000000001
+    - 0.7000000000000002
+    - 0.8
+    - 0.9000000000000001
+    - 1.0
+    measured_points_y:
+    - -0.5
+    - -0.4
+    - -0.3
+    - -0.19999999999999996
+    - -0.09999999999999998
+    - 0.0
+    - 0.10000000000000009
+    - 0.20000000000000007
+    - 0.30000000000000004
+    - 0.4
+    - 0.5
+    terminate_end_of_trajectory: false
+    pyramid_num_x: 3
+    pyramid_num_y: 5
+    pyramid_var_x: 0.5
+    pyramid_var_y: 0.3
+    pyramid_length_min: 0.2
+    pyramid_length_max: 0.4
+    pyramid_height_min: 0.2
+    pyramid_height_max: 0.4
+    measure_heights: false
+    terrain_noise_magnitude: 0.0
+    teleport_robots: true
+    border_size: 50
+    terrain_proportions:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1.0
+    curriculum: false
+commands:
+  desc: null
+  value:
+    switch_upon_reach: true
+    switch_interval: 0.5
+    traj_function: random_target
+    traj_length: 10
+    num_interpolation: 1
+    base_x: 4.0
+    base_y: 0.0
+    base_z: 0.29
+    base_roll: 0.0
+    base_pitch: 0.0
+    base_yaw: 0.0
+    x_range: 0.5
+    y_range: 0.5
+    z_range: 0.1
+    roll_range: 0.5235987755982988
+    pitch_range: 0.5235987755982988
+    yaw_range: 3.141592653589793
+    global_reference: false
+    switch_dist: 0.05
+    sampling_based_planning: false
+    plan_interval: 10
+    candidate_target_poses: "[[ 0.5         0.          0.29        0.          0.\
+      \          0.        ]\n [ 0.5         0.          0.29        0.          0.\
+      \         -0.39269908]\n [ 0.5         0.          0.29        0.          0.\
+      \          0.39269908]\n ...\n [ 0.5         0.3         0.23        0.26179939\
+      \  0.26179939  0.39269908]\n [ 0.5         0.3         0.23        0.26179939\
+      \  0.26179939 -0.78539816]\n [ 0.5         0.3         0.23        0.26179939\
+      \  0.26179939  0.78539816]]"
+    lin_vel_x:
+    - -0.6
+    - 0.6
+    lin_vel_y:
+    - -0.6
+    - 0.6
+    heading_command: false
+    resampling_time: 10.0
+    command_curriculum: true
+    num_lin_vel_bins: 30
+    num_ang_vel_bins: 30
+    ang_vel_yaw:
+    - -1
+    - 1
+curriculum_thresholds:
+  desc: null
+  value:
+    tracking_lin_vel: 0.8
+    tracking_ang_vel: 0.5
+    tracking_contacts_shaped_force: 0.8
+    tracking_contacts_shaped_vel: 0.8
+init_state:
+  desc: null
+  value:
+    pos:
+    - 0.0
+    - 0.0
+    - 0.34
+    rot:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    lin_vel:
+    - 0.0
+    - 0.0
+    - 0.0
+    ang_vel:
+    - 0.0
+    - 0.0
+    - 0.0
+    default_joint_angles:
+      FL_hip_joint: 0.1
+      RL_hip_joint: 0.1
+      FR_hip_joint: -0.1
+      RR_hip_joint: -0.1
+      FL_thigh_joint: 0.8
+      RL_thigh_joint: 1.0
+      FR_thigh_joint: 0.8
+      RR_thigh_joint: 1.0
+      FL_calf_joint: -1.5
+      RL_calf_joint: -1.5
+      FR_calf_joint: -1.5
+      RR_calf_joint: -1.5
+control:
+  desc: null
+  value:
+    control_type: P
+    stiffness:
+      joint: 20.0
+    damping:
+      joint: 0.5
+    action_scale: 0.25
+    hip_scale_reduction: 0.5
+    decimation: 4
+asset:
+  desc: null
+  value:
+    file: '{MINI_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1.urdf'
+    foot_name: foot
+    penalize_contacts_on:
+    - thigh
+    - calf
+    terminate_after_contacts_on:
+    - base
+    disable_gravity: false
+    collapse_fixed_joints: true
+    fix_base_link: false
+    default_dof_drive_mode: 3
+    self_collisions: 0
+    replace_cylinder_with_capsule: true
+    flip_visual_attachments: false
+    density: 0.001
+    angular_damping: 0.0
+    linear_damping: 0.0
+    max_angular_velocity: 1000.0
+    max_linear_velocity: 1000.0
+    armature: 0.0
+    thickness: 0.01
+domain_rand:
+  desc: null
+  value:
+    rand_interval_s: 6
+    randomize_motor_strength: true
+    randomize_motor_offset: true
+    motor_offset_range:
+    - -0.02
+    - 0.02
+    randomize_rigids_after_start: true
+    randomize_friction: true
+    friction_range:
+    - 0.05
+    - 4.5
+    randomize_restitution: true
+    restitution_range:
+    - 0.0
+    - 1.0
+    randomize_base_mass: true
+    added_mass_range:
+    - -1
+    - 3
+    randomize_com_displacement: true
+    com_displacement_range:
+    - -0.1
+    - 0.1
+    motor_strength_range:
+    - 0.9
+    - 1.1
+    randomize_Kp_factor: false
+    Kp_factor_range:
+    - 0.8
+    - 1.3
+    randomize_Kd_factor: false
+    Kd_factor_range:
+    - 0.5
+    - 1.5
+    gravity_rand_interval_s: 7
+    gravity_impulse_duration: 1.0
+    randomize_gravity: false
+    gravity_range:
+    - -1.0
+    - 1.0
+    push_robots: false
+    push_interval_s: 15
+    max_push_vel_xy: 0.5
+    randomize_lag_timesteps: true
+    lag_timesteps: 6
+    restitution: 0.5
+    push_interval: 751.0
+    rand_interval: 301.0
+    gravity_rand_interval: 351.0
+    gravity_rand_duration: 351.0
+rewards:
+  desc: null
+  value:
+    only_positive_rewards: true
+    only_positive_rewards_ji22_style: false
+    sigma_rew_neg: 5
+    reward_container_name: TrajectoryTrackingRewards
+    target_lin_vel: 0.25
+    lin_reaching_criterion: 0.01
+    tracking_sigma_lin: 0.05
+    target_ang_vel: 1.5707963267948966
+    ang_reaching_criterion: 0.15707963267948966
+    tracking_sigma_ang: 0.5
+    use_terminal_body_height: true
+    terminal_body_height: 0.05
+    soft_dof_pos_limit: 0.9
+    base_height_target: 0.34
+    T_reach: 200
+    small_vel_threshold: 0.1
+    large_dist_threshold: 0.5
+reward_scales:
+  desc: null
+  value:
+    torques: -1.0e-05
+    dof_acc: -2.5e-07
+    collision: -1.0
+    action_rate: -0.01
+    reaching_linear_vel: 1.2
+    reaching_z: -10.0
+    reaching_yaw: 0.6
+    dof_pos_limits: -10.0
+    orientation: 0.0
+    base_height: -30.0
+    reaching_roll: -0.5
+    reaching_pitch: -0.5
+normalization:
+  desc: null
+  value:
+    clip_observations: 100.0
+    clip_actions: 100.0
+    friction_range:
+    - 0.05
+    - 4.5
+    ground_friction_range:
+    - 0.05
+    - 4.5
+    restitution_range:
+    - 0
+    - 1.0
+    added_mass_range:
+    - -1.0
+    - 3.0
+    com_displacement_range:
+    - -0.1
+    - 0.1
+    motor_strength_range:
+    - 0.9
+    - 1.1
+    motor_offset_range:
+    - -0.05
+    - 0.05
+    Kp_factor_range:
+    - 0.8
+    - 1.3
+    Kd_factor_range:
+    - 0.5
+    - 1.5
+    joint_friction_range:
+    - 0.0
+    - 0.7
+    contact_force_range:
+    - 0.0
+    - 50.0
+    contact_state_range:
+    - 0.0
+    - 1.0
+    body_velocity_range:
+    - -6.0
+    - 6.0
+    foot_height_range:
+    - 0.0
+    - 0.15
+    body_height_range:
+    - 0.0
+    - 0.6
+    gravity_range:
+    - -1.0
+    - 1.0
+    motion:
+    - -0.01
+    - 0.01
+obs_scales:
+  desc: null
+  value:
+    lin_vel: 2.0
+    ang_vel: 0.25
+    dof_pos: 1.0
+    dof_vel: 0.05
+    imu: 0.1
+    height_measurements: 5.0
+    friction_measurements: 1.0
+    body_height_cmd: 2.0
+    gait_phase_cmd: 1.0
+    gait_freq_cmd: 1.0
+    footswing_height_cmd: 0.15
+    body_pitch_cmd: 0.3
+    body_roll_cmd: 0.3
+    aux_reward_cmd: 1.0
+    compliance_cmd: 1.0
+    stance_width_cmd: 1.0
+    stance_length_cmd: 1.0
+    segmentation_image: 1.0
+    rgb_image: 1.0
+    depth_image: 1.0
+noise:
+  desc: null
+  value:
+    add_noise: true
+    noise_level: 1.0
+noise_scales:
+  desc: null
+  value:
+    dof_pos: 0.01
+    dof_vel: 1.5
+    lin_vel: 0.1
+    ang_vel: 0.2
+    imu: 0.1
+    gravity: 0.05
+    contact_states: 0.05
+    height_measurements: 0.1
+    friction_measurements: 0.0
+    segmentation_image: 0.0
+    rgb_image: 0.0
+    depth_image: 0.0
+viewer:
+  desc: null
+  value:
+    ref_env: 0
+    pos:
+    - 10
+    - 0
+    - 6
+    lookat:
+    - 11.0
+    - 5
+    - 3.0
+sim:
+  desc: null
+  value:
+    dt: 0.005
+    substeps: 1
+    gravity:
+    - 0.0
+    - 0.0
+    - -9.81
+    up_axis: 1
+    use_gpu_pipeline: true
+    physx:
+      num_threads: 10
+      solver_type: 1
+      num_position_iterations: 4
+      num_velocity_iterations: 0
+      contact_offset: 0.01
+      rest_offset: 0.0
+      bounce_threshold_velocity: 0.5
+      max_depenetration_velocity: 1.0
+      max_gpu_contact_pairs: 8388608
+      default_buffer_size_multiplier: 5
+      contact_collection: 2
+command_ranges:
+  desc: null
+  value:
+    switch_upon_reach: true
+    switch_interval: 0.5
+    traj_function: random_target
+    traj_length: 10
+    num_interpolation: 1
+    base_x: 4.0
+    base_y: 0.0
+    base_z: 0.29
+    base_roll: 0.0
+    base_pitch: 0.0
+    base_yaw: 0.0
+    x_range: 0.5
+    y_range: 0.5
+    z_range: 0.1
+    roll_range: 0.5235987755982988
+    pitch_range: 0.5235987755982988
+    yaw_range: 3.141592653589793
+    global_reference: false
+    switch_dist: 0.05
+    sampling_based_planning: false
+    plan_interval: 10
+    candidate_target_poses: "[[ 0.5         0.          0.29        0.          0.\
+      \          0.        ]\n [ 0.5         0.          0.29        0.          0.\
+      \         -0.39269908]\n [ 0.5         0.          0.29        0.          0.\
+      \          0.39269908]\n ...\n [ 0.5         0.3         0.23        0.26179939\
+      \  0.26179939  0.39269908]\n [ 0.5         0.3         0.23        0.26179939\
+      \  0.26179939 -0.78539816]\n [ 0.5         0.3         0.23        0.26179939\
+      \  0.26179939  0.78539816]]"
+    lin_vel_x:
+    - -0.6
+    - 0.6
+    lin_vel_y:
+    - -0.6
+    - 0.6
+    heading_command: false
+    resampling_time: 10.0
+    command_curriculum: true
+    num_lin_vel_bins: 30
+    num_ang_vel_bins: 30
+    ang_vel_yaw:
+    - -1
+    - 1
+_wandb:
+  desc: null
+  value:
+    python_version: 3.8.16
+    cli_version: 0.15.4
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1691269181.958974
+    t:
+      1:
+      - 1
+      - 12
+      - 55
+      2:
+      - 1
+      - 12
+      - 55
+      3:
+      - 3
+      - 16
+      - 23
+      4: 3.8.16
+      5: 0.15.4
+      8:
+      - 5

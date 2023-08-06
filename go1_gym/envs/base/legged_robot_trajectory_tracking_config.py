@@ -119,12 +119,12 @@ class Cfg(PrefixProto, cli=False):
         traj_length = 1
         num_interpolation = 1
         # fixed target parameqters
-        base_x = 5
+        base_x = 5.0
         base_y = 0.0
         base_z = 0.29
-        base_roll = 0
-        base_pitch = 0
-        base_yaw = 0
+        base_roll = 0.0
+        base_pitch = 0.0
+        base_yaw = 0.0
         # random target parameters
         x_range = 0.5
         y_range = 0.5
@@ -134,6 +134,7 @@ class Cfg(PrefixProto, cli=False):
         yaw_range = 180 * np.pi / 180
         # for inference vel obs
         global_reference = False
+        switch_dist = 0.05
 
         sampling_based_planning = False
         plan_interval = 10  # replan every plan_interval steps

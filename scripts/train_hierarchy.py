@@ -51,25 +51,48 @@ def train_go1(headless=True):
 
     Cfg.reward_scales.torques = -0.00001  # -0.0002
     Cfg.reward_scales.dof_acc = -2.5e-7
+    Cfg.reward_scales.orientation = 0.0
     Cfg.reward_scales.collision = -1.
     Cfg.reward_scales.action_rate = -0.01
     Cfg.reward_scales.reaching_linear_vel = 1.2  # 0.6
     Cfg.reward_scales.reaching_z = -10.0
+    Cfg.reward_scales.reaching_roll = -0.5
+    Cfg.reward_scales.reaching_pitch = -0.5
     Cfg.reward_scales.reaching_yaw = 0.6  # 0.3
 
 
     # terrain
-    # Cfg.env.num_envs = 4000
-    Cfg.terrain.num_cols = 20
-    Cfg.terrain.num_rows = 20
-    Cfg.terrain.terrain_ratio_y = 1.0
+    # terrain
+    if True:
+        Cfg.terrain.mesh_type = 'plane'
+    else:
+        # By default random pyramid terrain
+        Cfg.terrain.num_cols = 20
+        Cfg.terrain.num_rows = 20
+        Cfg.terrain.terrain_length = 5.0
+        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_ratio_x = 0.5
+        Cfg.terrain.terrain_ratio_y = 1.0
+        Cfg.terrain.pyramid_num_x=5
+        Cfg.terrain.pyramid_num_y=3
+        Cfg.terrain.pyramid_var_x=0.3
+        Cfg.terrain.pyramid_var_y=0.3
 
     # goal
+    """ 
     Cfg.commands.traj_function = "fixed_target"
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
     Cfg.commands.base_x = 6.0
     Cfg.commands.sampling_based_planning = True
+    Cfg.commands.plan_interval = 10 """
+
+    # goal
+    Cfg.commands.traj_function = "random_target"
+    Cfg.commands.traj_length = 10
+    Cfg.commands.num_interpolation = 1
+    Cfg.commands.base_x = 4.0
+    Cfg.commands.sampling_based_planning = False
     Cfg.commands.plan_interval = 10
 
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
