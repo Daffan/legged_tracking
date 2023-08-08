@@ -20,9 +20,23 @@ class TrajectoryFunctions:
         y = torch.arange(1, tcfg.traj_length+1, device=self.env.device).repeat(len(env_ids), 1) * tcfg.base_y
         y += self.env.root_states[::self.env.num_actor][env_ids, 1:2]
         z = torch.zeros_like(x) + tcfg.base_z
-        yaw = torch.ones_like(x) * tcfg.base_yaw
+        yaw = torch.zeros_like(x) * tcfg.base_yaw
         pitch = torch.zeros_like(x) + tcfg.base_pitch
         roll = torch.zeros_like(x) + tcfg.base_roll
+        return torch.stack([x, y, z, roll, pitch, yaw], dim=2)
+    
+    def _traj_fn_random_goal(self, env_ids):
+        tcfg = self.env.cfg.commands
+        x_mean, x_range = tcfg.x_mean, tcfg.x_range
+        y_mean, y_range = tcfg.y_mean, tcfg.y_range
+        x = (torch.rand((*env_ids.shape, 1), device=self.env.device) - 0.5) * x_range + x_mean
+        x += self.env.root_states[::self.env.num_actor][env_ids, 0:1]
+        y = (torch.rand((*env_ids.shape, 1), device=self.env.device) - 0.5) * y_range + y_mean
+        y += self.env.root_states[::self.env.num_actor][env_ids, 1:2]
+        z = torch.zeros_like(x) + self.env.cfg.commands.base_z
+        yaw = torch.rand((*env_ids.shape, 1), device=self.env.device) * 2 * tcfg.yaw_range - tcfg.yaw_range
+        pitch = torch.zeros_like(x)
+        roll = torch.zeros_like(x)
         return torch.stack([x, y, z, roll, pitch, yaw], dim=2)
     
     def _traj_fn_random_target(self, env_ids):

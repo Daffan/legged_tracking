@@ -44,8 +44,8 @@ def train_go1(args):
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
     Cfg.env.num_observation_history = 1
-    Cfg.env.look_from_back = True
-    Cfg.env.terminate_end_of_trajectory = False
+    Cfg.env.look_from_back = True 
+    Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 10
 
     # asset
@@ -56,18 +56,18 @@ def train_go1(args):
     # rewards
     Cfg.rewards.T_reach = 200
     Cfg.rewards.small_vel_threshold = 0.05
-    Cfg.rewards.large_dist_threshold = 0.4
+    Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.exploration_steps = args.exploration_steps
     Cfg.rewards.only_positive_rewards = True
-    Cfg.rewards.terminal_body_height = 0.15
 
     # removing old rewards
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
     # adding new rewards
-    Cfg.reward_scales.task = args.r_task
+    Cfg.reward_scales.task = 0 # args.r_task
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.reward_scales.stalling = args.r_stalling
+    Cfg.reward_scales.reach_goal = 100
     # Cfg.reward_scales.reaching_roll = -0.0
     # Cfg.reward_scales.reaching_pitch = -0.0
     # Cfg.reward_scales.reaching_z = -5.0

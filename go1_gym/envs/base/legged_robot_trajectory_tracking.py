@@ -2,6 +2,7 @@
 
 import os
 from typing import Dict
+from collections import defaultdict, deque
 
 from isaacgym import gymtorch, gymapi, gymutil
 from isaacgym.torch_utils import *
@@ -114,7 +115,7 @@ class LeggedRobot(BaseTask):
                                                           )[:, self.feet_indices, 7:10]
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
                               0:3]
-        
+
         self._post_physics_step_callback()
 
         # compute observations, rewards, resets, ...
@@ -140,9 +141,23 @@ class LeggedRobot(BaseTask):
     def update_curriculum(self):
         if "exploration" in self.reward_scales and self.reward_scales["exploration"] > 0:
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
-                self.reward_scales["exploration"] -= 0.0002
+                self.reward_scales["exploration"] -= self.cfg.reward_scales.exploration / self.cfg.rewards.exploration_steps
                 if self.reward_scales["exploration"] <= 0:
                     print("Exploration reward disabled")
+
+        if self.cfg.curriculum_thresholds.cl_fix_target and \
+            np.mean(self.extras["train/episode"]["reached"]) > \
+            self.cfg.curriculum_thresholds.cl_switch_threshold and \
+            len(self.extras["train/episode"]["reached"]) == 500:
+            
+            self.current_target_dist += self.cfg.curriculum_thresholds.cl_switch_delta
+            self.current_target_dist = min(self.current_target_dist, self.cfg.curriculum_thresholds.cl_goal_target_dist)
+            self.cfg.commands.x_mean = self.current_target_dist
+            # only in x direction for now
+            # self.cfg.commands.y_mean += self.current_target_dist
+            # self.cfg.commands.y_mean = min(self.cfg.commands.y_mean, self.cfg.curriculum_thresholds.cl_goal_target_dist)
+
+            self.extras["train/episode"]["reached"] = deque(maxlen=500) # refresh deque 
 
     def check_termination(self):
         """ Check if environments need to be reset
@@ -158,7 +173,7 @@ class LeggedRobot(BaseTask):
             self.reset_buf = torch.logical_or(self.body_height_buf, self.reset_buf)
 
         if self.cfg.env.terminate_end_of_trajectory:
-            self.reset_buf |= self.reached_buf
+            self.reset_buf = torch.logical_or(self.reached_buf, self.reset_buf)
 
     def reset_idx(self, env_ids):
         """ Reset some environments.
@@ -197,12 +212,19 @@ class LeggedRobot(BaseTask):
         # fill extras
         train_env_ids = env_ids[env_ids < self.num_train_envs]
         if len(train_env_ids) > 0:
-            self.extras["train/episode"] = {}
+            # self.extras["train/episode"] = {}
             for key in self.episode_sums.keys():
-                self.extras["train/episode"]['rew_' + key] = torch.mean(
-                    self.episode_sums[key][train_env_ids])
+                self.extras["train/episode"]['rew_' + key].extend(
+                    self.episode_sums[key][train_env_ids].detach().cpu().numpy())
                 self.episode_sums[key][train_env_ids] = 0.
-            self.extras["train/episode"]['episode_length'] = torch.mean(episode_length_buf[train_env_ids])
+            self.extras["train/episode"]['episode_length'].extend(
+                episode_length_buf[train_env_ids].detach().cpu().numpy())
+            self.extras["train/episode"]['reached'].extend(
+                self.reached_buf[train_env_ids].detach().cpu().numpy())
+
+            # log curriculum
+            if self.cfg.curriculum_thresholds.cl_fix_target:
+                self.extras["train/episode"]['goal_dist'] = self.current_target_dist
         eval_env_ids = env_ids[env_ids >= self.num_train_envs]
         if len(eval_env_ids) > 0:
             self.extras["eval/episode"] = {}
@@ -211,9 +233,11 @@ class LeggedRobot(BaseTask):
                 unset_eval_envs = eval_env_ids[self.episode_sums_eval[key][eval_env_ids] == -1]
                 self.episode_sums_eval[key][unset_eval_envs] = self.episode_sums[key][unset_eval_envs]
                 self.episode_sums[key][eval_env_ids] = 0.
-            self.extras["eval/episode"]['episode_length'] = torch.mean(episode_length_buf[eval_env_ids])
+            self.extras["eval/episode"]['episode_length'].extend(
+                episode_length_buf[eval_env_ids].detach().cpu().numpy())
 
         if self.cfg.env.send_timeouts:
+            self.extras["timeouts"].extend(self.time_out_buf[:self.num_train_envs])
             self.extras["time_outs"] = self.time_out_buf[:self.num_train_envs]
 
         self.gait_indices[env_ids] = 0
@@ -676,7 +700,7 @@ class LeggedRobot(BaseTask):
             self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device))
 
         env_ids = torch.arange(self.num_envs).to(self.device)
-        self.target_poses = self._plan_target_pose(env_ids)
+        self._plan_target_pose(env_ids)
         self._compute_relative_target_pose(self.target_poses)
         self.commands = torch.cat([
             self.relative_linear[:, :2],  # relative x, y
@@ -710,19 +734,21 @@ class LeggedRobot(BaseTask):
         env_ids = self.switched_buf.nonzero(as_tuple=False).flatten()
         self.curr_pose_index[env_ids] += 1
         # cap to traj_length
-        self.curr_pose_index[env_ids] = torch.clip(self.curr_pose_index[env_ids]+1, max=self.cfg.commands.traj_length-1)
+        self.curr_pose_index[env_ids] = torch.clip(self.curr_pose_index[env_ids], max=self.cfg.commands.traj_length-1)
         self.reached_buf = torch.logical_and(self.switched_buf, self.curr_pose_index==self.cfg.commands.traj_length-1)
         # self._resample_trajectory(env_ids)
 
     def _plan_target_pose(self, env_ids):
         # No planning, directly use the goal as the target pose
         if not self.cfg.commands.sampling_based_planning:
-            target_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
+            # this is in world frame
+            self.target_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
         else:
             # sampling-based planning
             if self.last_plan_step > 0 and self.last_plan_step < self.cfg.commands.plan_interval:
                 self.last_plan_step += 1
-                target_poses = self.target_poses
+                # keep the last target pose
+                # target_poses = self.target_poses
             else:
                 self.last_plan_step = 1
                 target_poses = []
@@ -732,8 +758,11 @@ class LeggedRobot(BaseTask):
                     goal_pose = goal_poses[env_id]
                     goal_pose[:2] -= self.base_pos[env_id, :2].clone()
                     # sort by distance to goal pose
+                    metrics = torch.linalg.norm(candidate_target_poses_env[:, :2] - goal_pose[:2], dim=1)
+                    metrics += torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 10.  # penality for rotation
+                    metrics += torch.abs(candidate_target_poses_env[:, 3] - goal_pose[3]) * 100.  # penality for z from base
                     idxs = torch.argsort(
-                        torch.linalg.norm(candidate_target_poses_env[:, :3] - goal_pose[:3], dim=1) + \
+                        torch.linalg.norm(candidate_target_poses_env[:, :2] - goal_pose[:2], dim=1) + \
                         torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 0.1  # penality for rotation
                     , dim=-1)
                     candidate_target_poses_env = candidate_target_poses_env[idxs, :]
@@ -743,14 +772,18 @@ class LeggedRobot(BaseTask):
                     height_points[..., 2] = self.measured_heights[env_id]
                     height_points_cand = height_points.view(-1, 1, 3).repeat(1, len(candidate_target_poses_env), 1)
                     height_points_cand -= candidate_target_poses_linear[None, :, :]
-                    height_points_cand = quat_apply_yaw(candidate_target_poses_quat[None, :, :].repeat(height_points_cand.shape[0], 1, 1), height_points_cand)
+                    height_points_cand = quat_apply_yaw_inverse(candidate_target_poses_quat.repeat(height_points_cand.shape[0], 1), height_points_cand.view(-1, 3)).view(*height_points_cand.shape)
                     height_points_cand = torch.norm(height_points_cand / self.robot_size[None, None, :], dim=-1) > 1.0
                     cands_idx = torch.all(height_points_cand, dim=0)
                     target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
-                    target_pose_env[:2] += self.base_pos[env_id, :2]
+                    # bring the target pose to world frame 
+                    # target_pose_env[:2] += self.base_pos[env_id, :2]
+                    base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat[env_id][None, :])[0]
+                    target_pose_env[:2] = quat_apply_yaw(self.base_quat[[env_id]], target_pose_env[None, :3])[0, :2] + self.base_pos[env_id, :2]
+                    target_pose_env[-1] = wrap_to_pi(target_pose_env[-1] + base_rotation[-1])
                     target_poses.append(target_pose_env)
-                target_poses = torch.stack(target_poses, dim=0)
-        return target_poses
+                self.target_poses = torch.stack(target_poses, dim=0)
+
 
     def _compute_relative_target_pose(self, target_poses):
         """ Computes the relative pose of the target with respect to the body
@@ -767,8 +800,8 @@ class LeggedRobot(BaseTask):
         """ This function sets the visualization of the target pose 
             with a green coordinate frame.
         """
-        linear = self.trajectories[env_ids, self.curr_pose_index[env_ids], :3]
-        rotation = self.trajectories[env_ids, self.curr_pose_index[env_ids], 3:]
+        linear = self.target_poses[env_ids, :3]  # self.trajectories[env_ids, self.curr_pose_index[env_ids], :3]
+        rotation = self.target_poses[env_ids, 3:]  #  self.trajectories[env_ids, self.curr_pose_index[env_ids], 3:]
         arrow_actor_ids = (env_ids + 1) * self.num_actor - 1
         self.root_states[arrow_actor_ids, :3] = linear
         target_quat = quat_from_euler_xyz(rotation[:, 0], rotation[:, 1], rotation[:, 2])
@@ -1023,8 +1056,16 @@ class LeggedRobot(BaseTask):
         # initialize some data used later on
         self.common_step_counter = 0
         self.last_plan_step = 0
-        self.extras = {}
+        self.extras = {
+            "train/episode": defaultdict(lambda: deque([], 500)),
+            "eval/episode": defaultdict(lambda: deque([], 500)),
+            "timeouts": deque([], 500),
+        }
+        if self.cfg.curriculum_thresholds.cl_fix_target:
+            self.current_target_dist = self.cfg.curriculum_thresholds.cl_start_target_dist
+            self.cfg.commands.x_mean = self.current_target_dist
         self.robot_size = torch.tensor([0.3762, 0.0935, 0.114]).to(self.device).float()
+        self.reached_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
 
         # if self.cfg.env.observe_heights:
         self.height_points = self._init_height_points()

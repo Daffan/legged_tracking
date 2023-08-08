@@ -121,7 +121,7 @@ class Cfg(PrefixProto, cli=False):
         # fixed target parameqters
         base_x = 5.0
         base_y = 0.0
-        base_z = 0.29
+        base_z = 0.34
         base_roll = 0.0
         base_pitch = 0.0
         base_yaw = 0.0
@@ -132,6 +132,11 @@ class Cfg(PrefixProto, cli=False):
         roll_range = 30 * np.pi / 180
         pitch_range = 30 * np.pi / 180
         yaw_range = 180 * np.pi / 180
+        # random goal parameters
+        x_mean = 3.6
+        x_range = 0.4
+        y_mean = 3.6
+        y_eang = 0.4
         # for inference vel obs
         global_reference = False
         switch_dist = 0.05
@@ -141,19 +146,19 @@ class Cfg(PrefixProto, cli=False):
         candidate_target_poses = np.stack(np.meshgrid(
             np.linspace(0.5, 0.5, 1), # x
             # np.array([0, -0.15, 0.15, -0.3, 0.3]), # y
-            np.array([0, -0.15, +0.15, -0.3, 0.3]), # y
+            np.array([0, -0.15, +0.15, -0.3, 0.3, -0.45, 0.45]), # y
             np.array([0.29, 0.27, 0.31, 0.25, 0.23]), # z
             np.array([0, -15, +15]) * np.pi / 180, # roll
             np.array([0, -15, +15]) * np.pi / 180, # pitch
             np.array([0, -22.5, +22.5, -45, +45]) * np.pi / 180, # yaw
         ), axis=-1).reshape(-1, 6)  # (num_cands=1125, xyz+rotation=6) in robot frame  
 
-
     class curriculum_thresholds(PrefixProto, cli=False):
-        tracking_lin_vel = 0.8  # closer to 1 is tighter
-        tracking_ang_vel = 0.5
-        tracking_contacts_shaped_force = 0.8  # closer to 1 is tighter
-        tracking_contacts_shaped_vel = 0.8
+        cl_fix_target = False
+        cl_start_target_dist = 0.5
+        cl_goal_target_dist = 3.6
+        cl_switch_delta = 0.5
+        cl_switch_threshold = 1.0
 
     class init_state(PrefixProto, cli=False):
         pos = [0.0, 0.0, 1.]  # x,y,z [m]
@@ -243,7 +248,7 @@ class Cfg(PrefixProto, cli=False):
         ang_reaching_criterion = np.pi / 20.
         tracking_sigma_ang = 0.5
         use_terminal_body_height = True
-        terminal_body_height = 0.05
+        terminal_body_height = 0.1
 
     class reward_scales(ParamsProto, cli=False):
         torques = -0.00001  # -0.0002

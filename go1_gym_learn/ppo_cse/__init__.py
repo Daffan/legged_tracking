@@ -65,22 +65,23 @@ class RunnerArgs(PrefixProto, cli=False):
 
 class Runner:
 
-    def __init__(self, env, device='cpu', runner_args=RunnerArgs):
+    def __init__(self, env, device='cpu', runner_args=RunnerArgs, log_wandb=False):
         from .ppo import PPO
 
         self.device = device
         self.env = env
         self.runner_args = runner_args
+        self.log_wandb = log_wandb
 
         actor_critic = ActorCritic(self.env.num_obs,
                                       self.env.num_privileged_obs,
                                       self.env.num_obs_history,
                                       self.env.num_actions,
                                       ).to(self.device)
-        
-        save_path = os.path.join(wandb.run.dir, "parameters.pkl")
-        pickle.dump(vars(self.env.cfg), open(save_path, "wb"))
-        wandb.save(save_path)
+        if log_wandb:
+            save_path = os.path.join(wandb.run.dir, "parameters.pkl")
+            pickle.dump(vars(self.env.cfg), open(save_path, "wb"))
+            wandb.save(save_path)
 
         if runner_args.resume:
             # load pretrained weights from resume_path
@@ -115,7 +116,8 @@ class Runner:
 
         self.env.reset()
 
-    def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, curriculum_dump_freq=500, eval_expert=False, log_wandb=True):
+    def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, curriculum_dump_freq=500, eval_expert=False):
+        log_wandb = self.log_wandb
         # initialize writer
         # assert logger.prefix, "you will overwrite the entire instrument server"
 
@@ -168,13 +170,16 @@ class Runner:
                         # with logger.Prefix(metrics="train/episode"):
                         #     logger.store_metrics(**infos['train/episode'])
                         info = infos['train/episode']
-                        info["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - very_start)
-                        wandb.log({"train": info})
+                        metrics = {k: np.mean(v) for k, v in info.items()}
+                        metrics["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - very_start)
+                        wandb.log({"train": metrics})
 
                     if 'eval/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="eval/episode"):
                         #     logger.store_metrics(**infos['eval/episode'])
-                        wandb.log({"eval": infos['eval/episode']})
+                        info = infos['eval/episode']
+                        metrics = {k: np.mean(v) for k, v in info.items()}
+                        wandb.log({"eval": metrics})
 
                     if 'curriculum' in infos:
 
@@ -253,10 +258,10 @@ class Runner:
 
             if it % self.runner_args.save_interval == 0:
                 # with logger.Sync():
-                save_path = f"{wandb.run.dir}/checkpoints"
+                save_path = f"last_run/checkpoints"
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
-                torch.save(self.alg.actor_critic.state_dict(), f"{wandb.run.dir}/checkpoints/ac_weights.pt")
+                torch.save(self.alg.actor_critic.state_dict(), os.path.join(save_path, "ac_weights.pt"))
                 # shutil.copyfile(f"{wandb.run.dir}/checkpoints/ac_weights_{it:06d}.pt", f"{wandb.run.dir}/checkpoints/ac_weights_last.pt")
 
                 adaptation_module_path = f'{save_path}/adaptation_module_latest.jit'
@@ -270,34 +275,32 @@ class Runner:
                 traced_script_body_module.save(body_path)
 
                 if log_wandb:
-                    wandb.save(f"{wandb.run.dir}/checkpoints/ac_weights.pt", base_path=save_path)
-                    wandb.save(adaptation_module_path, base_path=save_path)
-                    wandb.save(body_path, base_path=save_path)
+                    wandb.save(os.path.join(save_path, "ac_weights.pt"))
+                    wandb.save(adaptation_module_path)
+                    wandb.save(body_path)
 
             self.current_learning_iteration += num_learning_iterations
 
        
-        torch.save(self.alg.actor_critic.state_dict(), f"{wandb.run.dir}/checkpoints/ac_weights.pt")
+        torch.save(self.alg.actor_critic.state_dict(), os.path.join(save_path, "ac_weights.pt"))
         # shutil.copyfile(f"{wandb.run.dir}/checkpoints/ac_weights_{it:06d}.pt", f"{wandb.run.dir}/checkpoints/ac_weights_last.pt")
 
-        path = f'{wandb.run.dir}/checkpoints'
+        os.makedirs(save_path, exist_ok=True)
 
-        os.makedirs(path, exist_ok=True)
-
-        adaptation_module_path = f'{path}/adaptation_module_latest.jit'
+        adaptation_module_path = f'{save_path}/adaptation_module_latest.jit'
         adaptation_module = copy.deepcopy(self.alg.actor_critic.adaptation_module).to('cpu')
         traced_script_adaptation_module = torch.jit.script(adaptation_module)
         traced_script_adaptation_module.save(adaptation_module_path)
 
-        body_path = f'{path}/body_latest.jit'
+        body_path = f'{save_path}/body_latest.jit'
         body_model = copy.deepcopy(self.alg.actor_critic.actor_body).to('cpu')
         traced_script_body_module = torch.jit.script(body_model)
         traced_script_body_module.save(body_path)
 
         if log_wandb:
-            wandb.save(f"{wandb.run.dir}/checkpoints/ac_weights.pt", base_path=save_path)
-            wandb.save(adaptation_module_path, base_path=save_path)
-            wandb.save(body_path, base_path=save_path)
+            wandb.save(os.path.join(save_path, "ac_weights.pt"))
+            wandb.save(adaptation_module_path)
+            wandb.save(body_path)
 
 
     def log_video(self, it):

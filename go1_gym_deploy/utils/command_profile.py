@@ -20,6 +20,18 @@ class CommandProfile:
     def reset(self, reset_time):
         self.start_time = reset_time
 
+class DummyFrontGoalProfile(CommandProfile):
+    def __init__(
+        self, dt, state_estimator,
+        max_time_s=10.
+    ):
+        super().__init__(dt, max_time_s)
+        self.dt = dt
+        self.se = state_estimator
+
+    def get_command(self, t):
+        # this is a dummy command with the goal 1 meter at the front of the robot with a height of 0.29 and no orientation.
+        return np.array([1.0, 0.0, 0.29, 0.0, 0.0, 0.0])
 
 class RandomTrajectoryProfile(CommandProfile):
     def __init__(

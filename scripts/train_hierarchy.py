@@ -45,9 +45,9 @@ def train_go1(headless=True):
     Cfg.control.control_type = 'P'
 
     # rewards
-    Cfg.rewards.T_reach = 200
-    Cfg.rewards.small_vel_threshold = 0.1
-    Cfg.rewards.large_dist_threshold = 0.5
+    Cfg.reward_scales.task = 0.0
+    Cfg.reward_scales.exploration = 0.0
+    Cfg.reward_scales.stalling = 0.0
 
     Cfg.reward_scales.torques = -0.00001  # -0.0002
     Cfg.reward_scales.dof_acc = -2.5e-7
@@ -63,7 +63,7 @@ def train_go1(headless=True):
 
     # terrain
     # terrain
-    if True:
+    if args.no_tunnel:
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain
@@ -79,24 +79,24 @@ def train_go1(headless=True):
         Cfg.terrain.pyramid_var_y=0.3
 
     # goal
-    """ 
-    Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.traj_length = 1
-    Cfg.commands.num_interpolation = 1
-    Cfg.commands.base_x = 6.0
-    Cfg.commands.sampling_based_planning = True
-    Cfg.commands.plan_interval = 10 """
+    if args.random_target:
+        Cfg.commands.traj_function = "random_target"
+        Cfg.commands.traj_length = 10
+        Cfg.commands.num_interpolation = 1
+        Cfg.commands.base_x = 4.0
+        Cfg.commands.sampling_based_planning = False
+        Cfg.commands.plan_interval = 10
+    else:
+        Cfg.commands.traj_function = "fixed_target"
+        Cfg.commands.traj_length = 1
+        Cfg.commands.num_interpolation = 1
+        Cfg.commands.base_x = 6.0
+        Cfg.commands.sampling_based_planning = True
+        Cfg.commands.plan_interval = 10
+    
 
-    # goal
-    Cfg.commands.traj_function = "random_target"
-    Cfg.commands.traj_length = 10
-    Cfg.commands.num_interpolation = 1
-    Cfg.commands.base_x = 4.0
-    Cfg.commands.sampling_based_planning = False
-    Cfg.commands.plan_interval = 10
-
-    env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
-    """ 
+    env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
+    """ Speed test
     import time
     start = time.time()
     for i in range(100):
@@ -107,55 +107,27 @@ def train_go1(headless=True):
     import ipdb; ipdb.set_trace() 
     """
 
-    # log the experiment parameters
-    # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
-    #                   Cfg=vars(Cfg))
-    log_wandb = True
-    if log_wandb:
+    if args.wandb:
         wandb.init(project="go1_gym", config=vars(Cfg))
 
     env = HistoryWrapper(env)
     gpu_id = 0
-    runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs)
-    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100, log_wandb=log_wandb)
+    runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
+    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100)
 
 
 if __name__ == '__main__':
     from pathlib import Path
     from go1_gym import MINI_GYM_ROOT_DIR
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--no_tunnel", action="store_true")
+    parser.add_argument("--random_target", action="store_true")
+    parser.add_argument("--wandb", action="store_true")
+    args = parser.parse_args()
 
     stem = Path(__file__).stem
-    # logger.configure(logger.utcnow(f'gait-conditioned-agility/%Y-%m-%d/{stem}/%H%M%S.%f'),
-    #                  root=Path(f"{MINI_GYM_ROOT_DIR}/runs").resolve(), )
-    '''
-    logger.log_text("""
-                charts: 
-                - yKey: train/episode/rew_total/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_tracking_lin_vel/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_tracking_contacts_shaped_force/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_action_smoothness_1/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_action_smoothness_2/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_tracking_contacts_shaped_vel/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_orientation_control/mean
-                  xKey: iterations
-                - yKey: train/episode/rew_dof_pos/mean
-                  xKey: iterations
-                - yKey: train/episode/command_area_trot/mean
-                  xKey: iterations
-                - yKey: train/episode/max_terrain_height/mean
-                  xKey: iterations
-                - type: video
-                  glob: "videos/*.mp4"
-                - yKey: adaptation_loss/mean
-                  xKey: iterations
-                """, filename=".charts.yml", dedent=True)
-    '''
-
     # to see the environment rendering, set headless=False
-    train_go1(headless=False)
+    train_go1(args)

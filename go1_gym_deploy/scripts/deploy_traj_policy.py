@@ -7,7 +7,7 @@ import torch
 from go1_gym_deploy.utils.deployment_runner import DeploymentRunner
 from go1_gym_deploy.envs.lcm_traj_agent import LCMAgent
 from go1_gym_deploy.utils.cheetah_state_estimator import StateEstimator
-from go1_gym_deploy.utils.command_profile import RandomTrajectoryProfile
+from go1_gym_deploy.utils.command_profile import RandomTrajectoryProfile, DummyFrontGoalProfile
 from go1_gym_deploy.utils.command_profile import *
 
 import pathlib
@@ -29,7 +29,7 @@ def load_and_run_policy(label, experiment_name):
     se = StateEstimator(lc)
 
     control_dt = 0.02
-    command_profile = RandomTrajectoryProfile(dt=control_dt, state_estimator=se)
+    command_profile = DummyFrontGoalProfile(dt=control_dt, state_estimator=se)
 
     hardware_agent = LCMAgent(cfg, se, command_profile)
     se.spin()
