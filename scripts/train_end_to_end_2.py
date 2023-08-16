@@ -44,7 +44,7 @@ def train_go1(args):
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
     Cfg.env.num_observation_history = 1
-    Cfg.env.look_from_back = True 
+    Cfg.env.look_from_back = False
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 10
 
@@ -58,7 +58,7 @@ def train_go1(args):
     Cfg.rewards.small_vel_threshold = 0.05
     Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.exploration_steps = args.exploration_steps
-    Cfg.rewards.only_positive_rewards = True
+    Cfg.rewards.only_positive_rewards = False
 
     # removing old rewards
     Cfg.reward_scales.reaching_linear_vel = 0
@@ -84,6 +84,7 @@ def train_go1(args):
     # terrain
     if args.no_tunnel:
         Cfg.terrain.mesh_type = 'plane'
+        Cfg.commands.traj_function = "random_goal"  # "random_goal", "fixed_target", "valid_goal"
     else:
         # By default random pyramid terrain
         Cfg.terrain.num_cols = 20
@@ -97,8 +98,9 @@ def train_go1(args):
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
 
+        Cfg.commands.traj_function = "valid_goal"  # "random_goal", "fixed_target", "valid_goal"
+
     # goal
-    Cfg.commands.traj_function = "random_goal"  # "random_goal", "fixed_target"
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
     Cfg.commands.x_mean = 0.4

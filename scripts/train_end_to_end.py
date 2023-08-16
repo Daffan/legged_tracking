@@ -58,7 +58,7 @@ def train_go1(args):
     Cfg.rewards.small_vel_threshold = 0.05
     Cfg.rewards.large_dist_threshold = 0.4
     Cfg.rewards.exploration_steps = args.exploration_steps
-    Cfg.rewards.only_positive_rewards = True
+    Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.terminal_body_height = 0.15
 
     # removing old rewards

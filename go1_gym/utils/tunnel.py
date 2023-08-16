@@ -56,6 +56,7 @@ class Terrain:
         self.num_sub_terrains = cfg.num_rows * cfg.num_cols
         self.env_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
+        self.terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
 
         self.width_per_env_pixels = int(self.env_width / cfg.horizontal_scale)
         self.length_per_env_pixels = int(self.env_length / cfg.horizontal_scale)
@@ -161,6 +162,8 @@ class Terrain:
         self.terrain_origins[i, j] = [(start_x) * self.horizontal_scale, (start_y) * self.horizontal_scale, 0]
 
         env_origin_x = (i + 0.5 - 0.375) * self.env_length  # an offset from the center
+        terrain_origin_x = i * self.env_length
+        terrain_origin_y = j * self.env_width
         env_origin_y = (j + 0.5) * self.env_width
         x1 = int((self.env_length/2. - 1) / self.horizontal_scale)
         x2 = int((self.env_length/2. + 1) / self.horizontal_scale)
@@ -168,6 +171,7 @@ class Terrain:
         y2 = int((self.env_width/2. + 1) / self.horizontal_scale)
         env_origin_z = 0.02 # np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
+        self.terrain_origins[i, j] = [terrain_origin_x, terrain_origin_y, env_origin_z]
 
 def vec_plane_from_points(p1, p2, p3, xy):
     # p1, p2, p3: (num_pyramid, 4, 3)

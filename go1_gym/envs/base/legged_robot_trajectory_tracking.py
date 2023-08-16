@@ -1529,8 +1529,10 @@ class LeggedRobot(BaseTask):
                 device=self.device, requires_grad=False
             )  # (num_envs, top_bottom, length, width)
             self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
+            self.env_terrain_origin = torch.from_numpy(self.terrain.terrain_origins).to(self.device).to(torch.float)
 
             self.env_origins[:] = self.terrain_origins[self.grid_r, self.grid_c]
+            self.env_terrain_origin = self.env_terrain_origin[self.grid_r, self.grid_c]
             self.env_height_samples[:] = torch.from_numpy(
                 self.terrain.height_samples_by_row_col * self.terrain.vertical_scale
             ).to(self.device).to(torch.float)[self.grid_r, self.grid_c]
@@ -1628,10 +1630,10 @@ class LeggedRobot(BaseTask):
             heights = torch.stack([top_heights, bottom_heights], dim=1)
         else:
             points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
-            # points = self.height_points[env_ids].clone()  # if we don;t transform, does it run faster?
-            points += self.root_states[::self.num_actor][env_ids, None, None, :3]
+            points += self.root_states[::self.num_actor][env_ids, None, None, :3]  # points are in world frame
+            points -= self.env_terrain_origin[env_ids, None, None, :]  # points are in env frame
 
-            points = (points / self.terrain.cfg.horizontal_scale).long()
+            points = (points / self.terrain.cfg.horizontal_scale).long()  # TODO: this is suspicious
             px = points[..., 0]
             py = points[..., 1]
             px = torch.clip(px, 0, self.env_height_samples.shape[2]-2)

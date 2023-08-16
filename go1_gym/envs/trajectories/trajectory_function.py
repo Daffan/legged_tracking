@@ -39,6 +39,32 @@ class TrajectoryFunctions:
         roll = torch.zeros_like(x)
         return torch.stack([x, y, z, roll, pitch, yaw], dim=2)
     
+    def _traj_fn_valid_goal(self, env_ids):
+        # sample valid goal from the terrain
+        tcfg = self.env.cfg.commands
+        x_mean, x_range = tcfg.x_mean, tcfg.x_range
+
+        # global elevation maps
+        env_height_sample = self.env.env_height_samples[env_ids]  # (num_envs, 2, num_pixels_x, num_pixels_y)
+        openings = env_height_sample[:, 0, :, :] - env_height_sample[:, 1, :, :]  # (num_envs, num_pixels_x, num_pixels_y)
+        
+        x = (torch.rand((*env_ids.shape, 1), device=self.env.device) - 0.5) * x_range + x_mean + 0.625
+        x_pixel = (x / self.env.terrain.cfg.horizontal_scale).long().unsqueeze(-1).repeat(1, 1, env_height_sample.shape[-1])  # (num_envs, 1, 1)
+        y_openings = openings.gather(1, x_pixel)[:, 0, :]\
+             - torch.linspace(-0.01, 0.01, env_height_sample.shape[-1], device=self.env.device).clip(0, 1)\
+             - torch.linspace(0.01, -0.01, env_height_sample.shape[-1], device=self.env.device).clip(0, 1)
+        y_pixel = torch.argmax(y_openings, dim=1).unsqueeze(-1)  # find the y_pixel that has the largest opening
+        y = y_pixel * self.env.terrain.cfg.horizontal_scale  # (num_envs, 1)
+
+        x += self.env.env_terrain_origin[env_ids, 0:1]
+        y += self.env.env_terrain_origin[env_ids, 1:2]
+        z = torch.zeros_like(x) + self.env.cfg.commands.base_z
+        yaw = torch.zeros_like(x)
+        pitch = torch.zeros_like(x)
+        roll = torch.zeros_like(x)
+        return torch.stack([x, y, z, roll, pitch, yaw], dim=2)
+
+
     def _traj_fn_random_target(self, env_ids):
         # random delta x, y, z, raw, pitch, yaw between waypoints with interpolation
         # return tractories of shape (num_envs, traj_length, 6)
