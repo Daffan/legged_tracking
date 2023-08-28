@@ -2,6 +2,7 @@ from isaacgym import gymutil, gymapi
 import torch
 from params_proto import Meta
 from typing import Union
+from collections import defaultdict, deque
 
 from go1_gym.envs.base.legged_robot_trajectory_tracking import LeggedRobot
 from go1_gym.envs.base.legged_robot_trajectory_tracking_config_old import Cfg
@@ -44,5 +45,12 @@ class TrajectoryTrackingEnv(LeggedRobot):
 
     def reset(self):
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
+        # import ipdb; ipdb.set_trace()
+        self.episode_length_buf = torch.randint(int(self.max_episode_length), (self.num_envs,), device=self.device, dtype=torch.long)
+        self.extras = {
+            "train/episode": defaultdict(lambda: deque([], 4000)),
+            "eval/episode": defaultdict(lambda: deque([], 4000)),
+            "timeouts": deque([], 4000),
+        }
         obs, _, _, _ = self.step(torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False))
         return obs

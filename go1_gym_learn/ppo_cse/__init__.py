@@ -143,9 +143,9 @@ class Runner:
         cur_reward_sum = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
         cur_episode_length = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
 
-        tot_iter = self.current_learning_iteration + num_learning_iterations
+        tot_iter = num_learning_iterations
         very_start = time.time()
-        for it in range(self.current_learning_iteration, tot_iter):
+        for it in range(tot_iter):
             start = time.time()
             # Rollout
             with torch.inference_mode():
@@ -170,6 +170,7 @@ class Runner:
                         # with logger.Prefix(metrics="train/episode"):
                         #     logger.store_metrics(**infos['train/episode'])
                         info = infos['train/episode']
+                        # import ipdb; ipdb.set_trace()
                         metrics = {k: np.mean(v) for k, v in info.items()}
                         metrics["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - very_start)
                         wandb.log({"train": metrics})
@@ -278,8 +279,6 @@ class Runner:
                     wandb.save(os.path.join(save_path, "ac_weights.pt"))
                     wandb.save(adaptation_module_path)
                     wandb.save(body_path)
-
-            self.current_learning_iteration += num_learning_iterations
 
        
         torch.save(self.alg.actor_critic.state_dict(), os.path.join(save_path, "ac_weights.pt"))

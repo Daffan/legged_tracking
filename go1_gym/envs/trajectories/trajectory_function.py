@@ -48,7 +48,9 @@ class TrajectoryFunctions:
         env_height_sample = self.env.env_height_samples[env_ids]  # (num_envs, 2, num_pixels_x, num_pixels_y)
         openings = env_height_sample[:, 0, :, :] - env_height_sample[:, 1, :, :]  # (num_envs, num_pixels_x, num_pixels_y)
         
-        x = (torch.rand((*env_ids.shape, 1), device=self.env.device) - 0.5) * x_range + x_mean + 0.625
+        x = (torch.rand((*env_ids.shape, 1), device=self.env.device) - 0.5) * x_range + x_mean
+        x += self.env.root_states[::self.env.num_actor][env_ids, 0:1]
+        x -= self.env.env_terrain_origin[env_ids, 0:1]
         x_pixel = (x / self.env.terrain.cfg.horizontal_scale).long().unsqueeze(-1).repeat(1, 1, env_height_sample.shape[-1])  # (num_envs, 1, 1)
         y_openings = openings.gather(1, x_pixel)[:, 0, :]\
              - torch.linspace(-0.01, 0.01, env_height_sample.shape[-1], device=self.env.device).clip(0, 1)\

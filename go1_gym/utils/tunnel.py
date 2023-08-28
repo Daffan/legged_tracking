@@ -56,7 +56,7 @@ class Terrain:
         self.num_sub_terrains = cfg.num_rows * cfg.num_cols
         self.env_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
-        self.terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
+        self.all_terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
 
         self.width_per_env_pixels = int(self.env_width / cfg.horizontal_scale)
         self.length_per_env_pixels = int(self.env_length / cfg.horizontal_scale)
@@ -159,9 +159,10 @@ class Terrain:
                 j*self.width_per_env_pixels: (j+1)*self.width_per_env_pixels,
             ]
         )
+        # import ipdb; ipdb.set_trace()
         self.terrain_origins[i, j] = [(start_x) * self.horizontal_scale, (start_y) * self.horizontal_scale, 0]
 
-        env_origin_x = (i + 0.5 - 0.375) * self.env_length  # an offset from the center
+        env_origin_x = (i + 0.5 - 0.325) * self.env_length  # an offset from the center
         terrain_origin_x = i * self.env_length
         terrain_origin_y = j * self.env_width
         env_origin_y = (j + 0.5) * self.env_width
@@ -171,7 +172,7 @@ class Terrain:
         y2 = int((self.env_width/2. + 1) / self.horizontal_scale)
         env_origin_z = 0.02 # np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
-        self.terrain_origins[i, j] = [terrain_origin_x, terrain_origin_y, env_origin_z]
+        self.all_terrain_origins[i, j] = [terrain_origin_x, terrain_origin_y, env_origin_z]
 
 def vec_plane_from_points(p1, p2, p3, xy):
     # p1, p2, p3: (num_pyramid, 4, 3)
@@ -313,3 +314,82 @@ def jit_random_pyramid(key, terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, len
             height_field_raw = height_field_raw.at[xi, yi].set(f(x, y))
     
     return height_field_raw
+
+
+import numpy as np
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+def plot_elevation_map(
+    elevationMap,
+    z_range=[0, 1],
+    size=[0.3762, 0.0935, 0.114],
+    scaler=0.1,
+    save_fig=False,
+):
+    """ Plot the elevation map
+    Args:
+        elevationMap: 3D numpy array of shape (2, n_pixel_x, n_pixel_y)
+        z_range: tuple of (min_z, max_z)
+        size: size of the robot (x, y, z)
+        scaler: horizontal scaler
+    """
+
+    height_points = []
+    for i in [0, 1]:
+        for x in range(elevationMap.shape[1]):
+            for y in range(elevationMap.shape[2]):
+                if z_range[0] <= elevationMap[i, x, y] < z_range[1]:
+                    height_points.append(np.array([
+                        (x - elevationMap.shape[1] // 2) * scaler,
+                        (y - elevationMap.shape[2] // 2) * scaler,
+                        elevationMap[i, x, y]
+                    ]))
+    height_points = np.stack(height_points)
+    if save_fig:
+        fig = plt.figure(figsize=(72, 36))    
+    else:
+        fig = plt.figure(figsize=(3.6, 2.4))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter3D(height_points[:, 0], height_points[:, 1], height_points[:, 2])
+
+    xx = size[0]/2.; yy = size[1]/2.; zz = size[2]/2.
+    cube = np.array([
+        [-xx, -yy, -zz],
+        [+xx, -yy, -zz],
+        [+xx, +yy, -zz],
+        [-xx, +yy, -zz],
+        [-xx, -yy, +zz],
+        [+xx, -yy, +zz],
+        [+xx, +yy, +zz],
+        [-xx, +yy, +zz],
+    ])
+
+    bottom = [0,1,2,3]
+    top    = [4,5,6,7]
+    front  = [0,1,5,4]
+    right  = [1,2,6,5]
+    back   = [2,3,7,6]
+    left   = [0,3,7,4]
+
+    surfs = np.stack([
+        cube[bottom], cube[top], cube[front], cube[right], cube[back], cube[left]
+    ])
+
+    wp = [0., 0., 0.34]; a = 0.3
+    surfs_rot = surfs + wp
+    ax.add_collection3d(Poly3DCollection(surfs_rot[[1]], facecolors='r', alpha=min(1.0, a*2)))
+    ax.add_collection3d(Poly3DCollection(surfs_rot[[0, 2, 3, 4, 5]], facecolors='r', alpha=a))
+    ax.set_box_aspect([ub - lb for lb, ub in (getattr(ax, f'get_{a}lim')() for a in 'xyz')])
+    if save_fig:
+        plt.savefig("elevation_map.png", dpi=300)
+        data = None
+    else:
+        fig.canvas.draw()
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        
+    # plt.show(block=True)
+    plt.close()
+
+    return data

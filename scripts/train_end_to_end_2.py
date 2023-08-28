@@ -38,20 +38,20 @@ def train_go1(args):
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
-    Cfg.env.num_observations = 507
-    Cfg.env.num_scalar_observations = 507
+    Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
+    Cfg.env.num_scalar_observations = 265  # 507
     # Cfg.env.observe_heights = False
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
-    Cfg.env.num_observation_history = 1
-    Cfg.env.look_from_back = False
+    Cfg.env.num_observation_history = 5
+    Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 10
 
     # asset
     # change to not terminate on, but just penalize base contact, 
-    Cfg.asset.penalize_contacts_on = ["thigh", "calf"]
-    Cfg.asset.terminate_after_contacts_on = ["base"]
+    Cfg.asset.penalize_contacts_on = ["thigh", "calf", "base"]
+    Cfg.asset.terminate_after_contacts_on = []
 
     # rewards
     Cfg.rewards.T_reach = 200
@@ -59,6 +59,7 @@ def train_go1(args):
     Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.exploration_steps = args.exploration_steps
     Cfg.rewards.only_positive_rewards = False
+    Cfg.rewards.use_terminal_body_height = False
 
     # removing old rewards
     Cfg.reward_scales.reaching_linear_vel = 0
@@ -67,14 +68,14 @@ def train_go1(args):
     Cfg.reward_scales.task = 0 # args.r_task
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.reward_scales.stalling = args.r_stalling
-    Cfg.reward_scales.reach_goal = 100
+    Cfg.reward_scales.reach_goal = 200
     # Cfg.reward_scales.reaching_roll = -0.0
     # Cfg.reward_scales.reaching_pitch = -0.0
-    # Cfg.reward_scales.reaching_z = -5.0
+    Cfg.reward_scales.reaching_z = -5.0
 
-    Cfg.reward_scales.dof_acc = -2.5e-7  # * 2
-    Cfg.reward_scales.torques = -1e-5  # * 2
-    Cfg.reward_scales.dof_pos_limits = -10.0  # * 2
+    Cfg.reward_scales.dof_acc = -2.5e-7 * 2
+    Cfg.reward_scales.torques = -1e-5 * 2
+    Cfg.reward_scales.dof_pos_limits = -10.0 * 2
     Cfg.reward_scales.collision = -1.0
     Cfg.reward_scales.action_rate = -0.01
     Cfg.reward_scales.orientation = 0.0  # -5.0
@@ -103,16 +104,16 @@ def train_go1(args):
     # goal
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.x_mean = 0.4
+    Cfg.commands.x_mean = 0.2
     Cfg.commands.y_mean = 0.0
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
-    Cfg.commands.switch_dist = 0.2
+    Cfg.commands.switch_dist = 0.25
     Cfg.curriculum_thresholds.cl_fix_target = True
-    Cfg.curriculum_thresholds.cl_start_target_dist = 0.4
-    Cfg.curriculum_thresholds.cl_goal_target_dist = 3.6
-    Cfg.curriculum_thresholds.cl_switch_delta = 0.4
-    Cfg.curriculum_thresholds.cl_switch_threshold = 0.5
+    Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
+    Cfg.curriculum_thresholds.cl_goal_target_dist = 4.0
+    Cfg.curriculum_thresholds.cl_switch_delta = 0.2
+    Cfg.curriculum_thresholds.cl_switch_threshold = 0.8
 
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
     """ 

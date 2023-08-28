@@ -13,7 +13,7 @@ import torch
 from go1_gym import MINI_GYM_ROOT_DIR
 from go1_gym.envs.base.base_task import BaseTask
 from go1_gym.utils.math_utils import quat_apply_yaw, wrap_to_pi, get_scale_shift, quat_without_yaw, quaternion_to_roll_pitch_yaw, quat_apply_yaw_inverse
-from go1_gym.utils.tunnel import Terrain
+from go1_gym.utils.tunnel import Terrain, plot_elevation_map
 from .legged_robot_trajectory_tracking_config import Cfg
 from go1_gym.envs.trajectories.trajectory_function import TrajectoryFunctions
 
@@ -148,7 +148,7 @@ class LeggedRobot(BaseTask):
         if self.cfg.curriculum_thresholds.cl_fix_target and \
             np.mean(self.extras["train/episode"]["reached"]) > \
             self.cfg.curriculum_thresholds.cl_switch_threshold and \
-            len(self.extras["train/episode"]["reached"]) == 500:
+            len(self.extras["train/episode"]["reached"]) == 4000:
             
             self.current_target_dist += self.cfg.curriculum_thresholds.cl_switch_delta
             self.current_target_dist = min(self.current_target_dist, self.cfg.curriculum_thresholds.cl_goal_target_dist)
@@ -157,14 +157,15 @@ class LeggedRobot(BaseTask):
             # self.cfg.commands.y_mean += self.current_target_dist
             # self.cfg.commands.y_mean = min(self.cfg.commands.y_mean, self.cfg.curriculum_thresholds.cl_goal_target_dist)
 
-            self.extras["train/episode"]["reached"] = deque(maxlen=500) # refresh deque 
+            self.extras["train/episode"]["reached"] = deque(maxlen=4000) # refresh deque 
+            self.extras["eval/episode"]["reached"] = deque(maxlen=4000) # refresh deque 
 
     def check_termination(self):
         """ Check if environments need to be reset
         """
         self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1.,
                                    dim=1)
-        self.time_out_buf = self.episode_length_buf > self.cfg.env.max_episode_length  # no terminal reward for time-outs
+        self.time_out_buf = self.episode_length_buf > self.max_episode_length  # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
         if self.cfg.rewards.use_terminal_body_height:
             # TODO: height to the floor should consider floor height
@@ -213,6 +214,7 @@ class LeggedRobot(BaseTask):
         train_env_ids = env_ids[env_ids < self.num_train_envs]
         if len(train_env_ids) > 0:
             # self.extras["train/episode"] = {}
+            # import ipdb; ipdb.set_trace()
             for key in self.episode_sums.keys():
                 self.extras["train/episode"]['rew_' + key].extend(
                     self.episode_sums[key][train_env_ids].detach().cpu().numpy())
@@ -333,8 +335,11 @@ class LeggedRobot(BaseTask):
                                       ), dim=-1)
             
         if self.cfg.env.observe_heights:
-            self.obs_buf = torch.cat((self.obs_buf,
-                                      self.measured_heights.view(self.num_train_envs, -1)), dim=-1) * self.obs_scales.height_measurements
+            # take the second half as front
+            measured_heights_front = self.measured_heights[:, :, int(self.measured_heights.shape[2] // 2 + 1):, :]
+            measured_heights_front = measured_heights_front.reshape(self.num_train_envs, -1) * self.obs_scales.height_measurements
+            self.obs_buf = torch.cat((
+                self.obs_buf, measured_heights_front), dim=-1)
 
         if self.cfg.env.observe_two_prev_actions:
             self.obs_buf = torch.cat((self.obs_buf,
@@ -918,16 +923,22 @@ class LeggedRobot(BaseTask):
         if cfg.env.record_video and 0 in env_ids:
             if self.complete_video_frames is None:
                 self.complete_video_frames = []
+                self.complete_height_frames = []
             else:
                 self.complete_video_frames = self.video_frames[:]
+                self.complete_height_frames = self.height_frames[:]
             self.video_frames = []
+            self.height_frames = []
 
         if cfg.env.record_video and self.eval_cfg is not None and self.num_train_envs in env_ids:
             if self.complete_video_frames_eval is None:
                 self.complete_video_frames_eval = []
+                self.complete_height_frames_eval = []
             else:
                 self.complete_video_frames_eval = self.video_frames_eval[:]
+                self.complete_height_frames_eval = self.height_frames_eval[:]
             self.video_frames_eval = []
+            self.height_frames_eval = []
 
     def _push_robots(self, env_ids, cfg):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity.
@@ -973,9 +984,10 @@ class LeggedRobot(BaseTask):
                                    torch.zeros(self.num_actions),
                                    ), dim=0)
         if self.cfg.env.observe_heights:
-            noise_vec = torch.cat((noise_vec,
-                                   torch.zeros(2 * np.prod(self.height_points.shape[1:3]))
-                                   ), dim=0)
+            # noise_vec = torch.cat((noise_vec,
+            #                        torch.zeros(2 * np.prod(self.height_points.shape[1:3]))
+            #                        ), dim=0)
+            noise_vec = torch.cat((noise_vec, torch.zeros(2 * 10 * 11)), dim=0)
         if self.cfg.env.observe_two_prev_actions:
             noise_vec = torch.cat((noise_vec,
                                    torch.zeros(self.num_actions)
@@ -1057,9 +1069,9 @@ class LeggedRobot(BaseTask):
         self.common_step_counter = 0
         self.last_plan_step = 0
         self.extras = {
-            "train/episode": defaultdict(lambda: deque([], 500)),
-            "eval/episode": defaultdict(lambda: deque([], 500)),
-            "timeouts": deque([], 500),
+            "train/episode": defaultdict(lambda: deque([], 4000)),
+            "eval/episode": defaultdict(lambda: deque([], 4000)),
+            "timeouts": deque([], 4000),
         }
         if self.cfg.curriculum_thresholds.cl_fix_target:
             self.current_target_dist = self.cfg.curriculum_thresholds.cl_start_target_dist
@@ -1424,6 +1436,11 @@ class LeggedRobot(BaseTask):
         self.complete_video_frames = []
         self.complete_video_frames_eval = []
 
+        self.height_frames = []
+        self.height_frames_eval = []
+        self.complete_height_frames = []
+        self.complete_height_frames_eval = []
+
     def render(self, mode="rgb_array"):
         assert mode == "rgb_array"
         bx, by, bz = self.root_states[0, 0], self.root_states[0, 1], self.root_states[0, 2]
@@ -1434,6 +1451,13 @@ class LeggedRobot(BaseTask):
         img = self.gym.get_camera_image(self.sim, self.envs[0], self.rendering_camera, gymapi.IMAGE_COLOR)
         w, h = img.shape
         return img.reshape([w, h // 4, 4])
+    
+    def get_height_frame(self, env_id):
+        elevation_map = self.measured_heights[env_id].cpu().numpy()
+        data = plot_elevation_map(elevation_map)
+        a_channel = np.ones_like(data[:, :, 0]) * 255
+        data = np.concatenate([data, a_channel[:, :, None]], axis=2)
+        return data
 
     def _render_headless(self):
         if self.record_now and self.complete_video_frames is not None and len(self.complete_video_frames) == 0:
@@ -1458,7 +1482,11 @@ class LeggedRobot(BaseTask):
             self.video_frame = self.video_frame.reshape((self.camera_props.height, self.camera_props.width, 4))
             self.video_frames.append(self.video_frame)
 
-            self.height_frame = self.measured_heights.detach().cpu().numpy()
+            try:
+                self.height_frame = self.get_height_frame(0)  # self.measured_heights.detach().cpu().numpy()
+            except:
+                pass
+            self.height_frames.append(self.height_frame)
 
         if self.record_eval_now and self.complete_video_frames_eval is not None and len(
                 self.complete_video_frames_eval) == 0:
@@ -1475,6 +1503,9 @@ class LeggedRobot(BaseTask):
                     (self.camera_props.height, self.camera_props.width, 4))
                 self.video_frames_eval.append(self.video_frame_eval)
 
+                self.height_frame = self.plot_elevation_map(self.num_train_envs)  # self.measured_heights.detach().cpu().numpy()
+                self.height_frames.append(self.height_frame)
+
     def start_recording(self):
         self.complete_video_frames = None
         self.record_now = True
@@ -1486,22 +1517,26 @@ class LeggedRobot(BaseTask):
     def pause_recording(self):
         self.complete_video_frames = []
         self.video_frames = []
+        self.height_frames = []
         self.record_now = False
 
     def pause_recording_eval(self):
         self.complete_video_frames_eval = []
         self.video_frames_eval = []
+        self.height_frames_eval = []
         self.record_eval_now = False
 
     def get_complete_frames(self):
         if self.complete_video_frames is None:
             return []
-        return self.complete_video_frames
+        # return self.complete_video_frames
+        return [np.concatenate([vf, hf], axis=1) for vf, hf in zip(self.complete_video_frames, self.complete_height_frames)]
 
     def get_complete_frames_eval(self):
         if self.complete_video_frames_eval is None:
             return []
-        return self.complete_video_frames_eval
+        # return self.complete_video_frames_eval
+        return [np.concatenate([vf, hf], axis=1) for vf, hf in zip(self.complete_video_frames_eval, self.complete_height_frames_eval)]
 
     def _get_env_origins(self, env_ids, cfg: Cfg):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
@@ -1529,7 +1564,7 @@ class LeggedRobot(BaseTask):
                 device=self.device, requires_grad=False
             )  # (num_envs, top_bottom, length, width)
             self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
-            self.env_terrain_origin = torch.from_numpy(self.terrain.terrain_origins).to(self.device).to(torch.float)
+            self.env_terrain_origin = torch.from_numpy(self.terrain.all_terrain_origins).to(self.device).to(torch.float)
 
             self.env_origins[:] = self.terrain_origins[self.grid_r, self.grid_c]
             self.env_terrain_origin = self.env_terrain_origin[self.grid_r, self.grid_c]
@@ -1629,7 +1664,8 @@ class LeggedRobot(BaseTask):
             bottom_heights = torch.zeros(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False) # sufficient space at the top
             heights = torch.stack([top_heights, bottom_heights], dim=1)
         else:
-            points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            # points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            points = quat_apply(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
             points += self.root_states[::self.num_actor][env_ids, None, None, :3]  # points are in world frame
             points -= self.env_terrain_origin[env_ids, None, None, :]  # points are in env frame
 
@@ -1645,6 +1681,8 @@ class LeggedRobot(BaseTask):
 
             heights = torch.min(heights1, heights2)
             heights = torch.min(heights, heights3)
-            heights = heights * self.terrain.vertical_scale
+            # heights = heights * self.terrain.vertical_scale
+
+        # import ipdb; ipdb.set_trace()
 
         return heights
