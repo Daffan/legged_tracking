@@ -336,7 +336,13 @@ class LeggedRobot(BaseTask):
             
         if self.cfg.env.observe_heights:
             # take the second half as front
-            measured_heights_front = self.measured_heights[:, :, int(self.measured_heights.shape[2] // 2 + 1):, :]
+            if self.cfg.terrain.measure_front_half:
+                x_start = int(self.measured_heights.shape[2] // 2 + 1)
+            else:
+                x_start = 0
+            measured_heights_front = self.measured_heights[:, :, x_start:, :]
+
+            # measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
             measured_heights_front = measured_heights_front.reshape(self.num_train_envs, -1) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((
                 self.obs_buf, measured_heights_front), dim=-1)
@@ -984,10 +990,13 @@ class LeggedRobot(BaseTask):
                                    torch.zeros(self.num_actions),
                                    ), dim=0)
         if self.cfg.env.observe_heights:
-            # noise_vec = torch.cat((noise_vec,
-            #                        torch.zeros(2 * np.prod(self.height_points.shape[1:3]))
-            #                        ), dim=0)
-            noise_vec = torch.cat((noise_vec, torch.zeros(2 * 10 * 11)), dim=0)
+            if self.cfg.terrain.measure_front_half:
+                size = self.height_points.shape[1] // 2 * self.height_points.shape[2] * 2
+                noise_vec = torch.cat((noise_vec, torch.zeros((size,))), dim=0)
+            else:
+                noise_vec = torch.cat((noise_vec,
+                                    torch.zeros(2 * np.prod(self.height_points.shape[1:3]))
+                                    ), dim=0)
         if self.cfg.env.observe_two_prev_actions:
             noise_vec = torch.cat((noise_vec,
                                    torch.zeros(self.num_actions)
@@ -1461,7 +1470,10 @@ class LeggedRobot(BaseTask):
 
     def _render_headless(self):
         if self.record_now and self.complete_video_frames is not None and len(self.complete_video_frames) == 0:
-            bx, by, bz = self.root_states[0, 0], self.root_states[0, 1], self.root_states[0, 2]
+            env_id = 0  # np.random.randint(0, self.num_train_envs)
+            bx = self.root_states[env_id * self.num_actor, 0], 
+            by = self.root_states[env_id * self.num_actor, 1]
+            bz = self.root_states[env_id * self.num_actor, 2]
             if self.cfg.env.look_from_back:
                 pos_target = torch.tensor([
                 [-0.295-0.1, 0, 0.35],
@@ -1469,21 +1481,21 @@ class LeggedRobot(BaseTask):
                 ], device=self.device)
                 # Right now it does not rotate with the robot
                 # pos_target = quat_apply_yaw(self.base_quat[[0]*2], pos_target)
-                pos_target[:, :2] += self.root_states[0, :2]
+                pos_target[:, :2] += self.root_states[env_id * self.num_actor, :2]
                 self.gym.set_camera_location(
-                    self.rendering_camera, self.envs[0],
+                    self.rendering_camera, self.envs[env_id],
                     gymapi.Vec3(*pos_target[0].detach().cpu().numpy()),
                     gymapi.Vec3(*pos_target[1].detach().cpu().numpy()))
             else:
-                self.gym.set_camera_location(self.rendering_camera, self.envs[0], gymapi.Vec3(bx, by - 1.0, bz + 1.0),
+                self.gym.set_camera_location(self.rendering_camera, self.envs[env_id], gymapi.Vec3(bx, by - 1.0, bz + 1.0),
                                             gymapi.Vec3(bx, by, bz))
-            self.video_frame = self.gym.get_camera_image(self.sim, self.envs[0], self.rendering_camera,
+            self.video_frame = self.gym.get_camera_image(self.sim, self.envs[env_id], self.rendering_camera,
                                                          gymapi.IMAGE_COLOR)
             self.video_frame = self.video_frame.reshape((self.camera_props.height, self.camera_props.width, 4))
             self.video_frames.append(self.video_frame)
 
             try:
-                self.height_frame = self.get_height_frame(0)  # self.measured_heights.detach().cpu().numpy()
+                self.height_frame = self.get_height_frame(env_id)  # self.measured_heights.detach().cpu().numpy()
             except:
                 pass
             self.height_frames.append(self.height_frame)
@@ -1660,16 +1672,18 @@ class LeggedRobot(BaseTask):
         """
         if self.cfg.terrain.mesh_type == "plane":
             # Dummy heights maps
-            top_heights = torch.ones(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False) * 0.5  # sufficient space at the top
+            top_heights = torch.ones(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False)  # sufficient space at the top
             bottom_heights = torch.zeros(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False) # sufficient space at the top
             heights = torch.stack([top_heights, bottom_heights], dim=1)
         else:
-            # points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
-            points = quat_apply(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
-            points += self.root_states[::self.num_actor][env_ids, None, None, :3]  # points are in world frame
-            points -= self.env_terrain_origin[env_ids, None, None, :]  # points are in env frame
-
-            points = (points / self.terrain.cfg.horizontal_scale).long()  # TODO: this is suspicious
+            if self.cfg.env.rotate_camera:
+                points = quat_apply(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            else:
+                points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            points[..., :2] += self.root_states[::self.num_actor][env_ids, None, None, :2]  # bring points to the world frame
+            points -= self.env_terrain_origin[env_ids, None, None, :]  # bring points to the env frame
+            # TODO: get the actual position of the camera
+            points = (points / self.terrain.cfg.horizontal_scale).long()
             px = points[..., 0]
             py = points[..., 1]
             px = torch.clip(px, 0, self.env_height_samples.shape[2]-2)

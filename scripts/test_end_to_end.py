@@ -3,6 +3,7 @@ import isaacgym
 assert isaacgym
 import torch
 import numpy as np
+import cv2
 
 import glob
 import pickle as pkl
@@ -14,12 +15,12 @@ from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
 from tqdm import tqdm
 
-LOAD_PATH = "wandb/run-20230825_101357-2hnjf938"
+LOAD_PATH = "wandb/run-20230828_133920-jzv81je7/files"
 
 def load_policy(logdir):
-    body = torch.jit.load(logdir + '/last_run/checkpoints/body_latest.jit')
+    body = torch.jit.load(logdir + '/files/checkpoints/body_latest.jit')
     import os
-    adaptation_module = torch.jit.load(logdir + '/last_run/checkpoints/adaptation_module_latest.jit')
+    adaptation_module = torch.jit.load(logdir + '/files/checkpoints/adaptation_module_latest.jit')
 
     def policy(obs, info={}):
         i = 0
@@ -36,7 +37,7 @@ def load_env(logdir, headless=False):
     with open(logdir + "/parameters.pkl", 'rb') as file:
         pkl_cfg = pkl.load(file)
         print(pkl_cfg.keys())
-        cfg = pkl_cfg["Cfg"]
+        cfg = pkl_cfg  # ["Cfg"]
         print(cfg.keys())
 
         for key, value in cfg.items():
@@ -61,8 +62,8 @@ def load_env(logdir, headless=False):
 
     Cfg.env.num_recording_envs = 1
     Cfg.env.num_envs = 1
-    Cfg.terrain.num_rows = 5
-    Cfg.terrain.num_cols = 5
+    Cfg.terrain.num_rows = 1
+    Cfg.terrain.num_cols = 1
     Cfg.terrain.border_size = 0
     Cfg.terrain.center_robots = True
     Cfg.terrain.center_span = 1
@@ -72,11 +73,27 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_lag_timesteps = True
     Cfg.control.control_type = "actuator_net"
 
-    Cfg.terrain.mesh_type = 'plane'
+    if True:
+        Cfg.terrain.mesh_type = 'plane'
+    else:
+        # By default random pyramid terrain
+        Cfg.terrain.num_cols = 1
+        Cfg.terrain.num_rows = 1
+        Cfg.terrain.terrain_length = 5.0
+        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_ratio_x = 0.5
+        Cfg.terrain.terrain_ratio_y = 1.0
+        Cfg.terrain.pyramid_num_x=5
+        Cfg.terrain.pyramid_num_y=3
+        Cfg.terrain.pyramid_var_x=0.3
+        Cfg.terrain.pyramid_var_y=0.3
+
     Cfg.commands.traj_function = "fixed_target"
     Cfg.commands.base_x = 1.0
     Cfg.commands.base_y = 0.0
     Cfg.curriculum_thresholds.cl_fix_target = False
+    Cfg.env.rotate_camera = True
+    Cfg.terrain.measure_front_half = True
 
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
 
@@ -103,22 +120,35 @@ def play_go1(headless=True):
     logdir = LOAD_PATH
 
     env, policy = load_env(logdir, headless=headless)
+    env.start_recording()
 
-    num_eval_steps = 250
+    num_eval_steps = 2000
 
     measured_x_vels = np.zeros(num_eval_steps)
     joint_positions = np.zeros((num_eval_steps, 12))
 
     obs = env.reset()
+    import ipdb; ipdb.set_trace()
 
     for i in tqdm(range(num_eval_steps)):
         with torch.no_grad():
+            print(">>>>>>>", obs["obs_history"])
             actions = policy(obs)
+            # import ipdb; ipdb.set_trace()
+        print(actions)
         obs, rew, done, info = env.step(actions)
 
         measured_x_vels[i] = env.base_lin_vel[0, 0]
         joint_positions[i] = env.dof_pos[0, :].cpu()
 
+    frames = env.get_complete_frames()
+
+    fps = 25
+    out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frames[0].shape[1], frames[0].shape[0]), True)
+    for frame in frames:
+        out.write(frame[:, :, :3])
+    out.release()
+    """ 
     # plot target and measured forward velocity
     from matplotlib import pyplot as plt
     fig, axs = plt.subplots(2, 1, figsize=(12, 5))
@@ -135,7 +165,7 @@ def play_go1(headless=True):
     axs[1].set_ylabel("Joint Position (rad)")
 
     plt.tight_layout()
-    plt.show()
+    plt.show() """
 
 
 if __name__ == '__main__':

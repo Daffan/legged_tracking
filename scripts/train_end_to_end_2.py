@@ -37,13 +37,14 @@ def train_go1(args):
     # observation space
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
+    Cfg.terrain.measure_front_half = True
     Cfg.env.observe_heights = True
     Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
     Cfg.env.num_scalar_observations = 265  # 507
     # Cfg.env.observe_heights = False
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
-    Cfg.env.num_observation_history = 5
+    Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 10
@@ -88,14 +89,15 @@ def train_go1(args):
         Cfg.commands.traj_function = "random_goal"  # "random_goal", "fixed_target", "valid_goal"
     else:
         # By default random pyramid terrain
+        Cfg.terrain.terrain_type = 'random_pyramid'
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
         Cfg.terrain.terrain_width = 3.2
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=5
-        Cfg.terrain.pyramid_num_y=3
+        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
 

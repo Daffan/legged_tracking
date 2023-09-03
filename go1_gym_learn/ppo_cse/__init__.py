@@ -259,7 +259,10 @@ class Runner:
 
             if it % self.runner_args.save_interval == 0:
                 # with logger.Sync():
-                save_path = f"last_run/checkpoints"
+                if log_wandb:
+                    save_path = os.path.join(wandb.run.dir, "checkpoints")
+                else:
+                    save_path = f"last_run/checkpoints"
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
                 torch.save(self.alg.actor_critic.state_dict(), os.path.join(save_path, "ac_weights.pt"))

@@ -64,6 +64,7 @@ class Cfg(PrefixProto, cli=False):
         priv_observe_dummy_variable = False
 
         terminate_end_of_trajectory = False
+        rotate_camera = True
 
     class terrain(PrefixProto, cli=False):
         mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
@@ -99,6 +100,7 @@ class Cfg(PrefixProto, cli=False):
 
         measured_points_x = np.linspace(-1, 1, 21)
         measured_points_y = np.linspace(-0.5, 0.5, 11)
+        measure_front_half = True
 
         terminate_end_of_trajectory = False
 
@@ -290,7 +292,7 @@ class Cfg(PrefixProto, cli=False):
         dof_pos = 1.0
         dof_vel = 0.05
         imu = 0.1
-        height_measurements = 5.0
+        height_measurements = 1.0
         friction_measurements = 1.0
         body_height_cmd = 2.0
         gait_phase_cmd = 1.0
