@@ -37,10 +37,11 @@ from scipy import interpolate
 
 from isaacgym import terrain_utils
 from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
+from go1_gym.utils.planner import valid_checking
 
-import jax.numpy as jnp
-from jax import jit
-import jax
+# import jax.numpy as jnp
+# from jax import jit
+# import jax
 from functools import partial
 
 class Terrain:
@@ -77,11 +78,33 @@ class Terrain:
             print("Creating subterrain %d" %k, end="\r")
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
             difficulty = np.random.uniform(0.0, 1.0)
-            terrain_top = self.make_terrain(cfg.terrain_type, difficulty, k)
-            terrain_bottom = self.make_terrain(cfg.terrain_type, difficulty, k)
-            # flip the ceiling of the tunnel at the ceiling
-            terrain_top.height_field_raw = self.cfg.ceiling_height / self.vertical_scale - terrain_top.height_field_raw
-            terrain_top.height_field_raw = np.clip(terrain_top.height_field_raw, a_max=None, a_min=0.05 / self.vertical_scale)
+            valid = False
+            while not valid:
+                terrain_top = self.make_terrain(cfg.terrain_type, difficulty, k)
+                terrain_bottom = self.make_terrain(cfg.terrain_type, difficulty, k)
+                # flip the ceiling of the tunnel at the ceiling
+                terrain_top.height_field_raw = self.cfg.ceiling_height / self.vertical_scale - terrain_top.height_field_raw
+                terrain_top.height_field_raw = np.clip(terrain_top.height_field_raw, a_max=None, a_min=0.05 / self.vertical_scale)
+                
+                elevation_map_top = terrain_top.height_field_raw.T * self.vertical_scale
+                elevation_map_bottom = terrain_bottom.height_field_raw.T * self.vertical_scale
+                elevation_map = np.stack([elevation_map_top, elevation_map_bottom])
+
+                start_state = np.array([-0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
+                goal_state = np.array([0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
+                if cfg.valid_tunnel_only:
+                    valid = valid_checking(
+                        elevation_map,
+                        start_state,
+                        goal_state,
+                        self.env_length,
+                        self.env_width,
+                        self.terrain_ratio_y,
+                        self.horizontal_scale,
+                    )
+                else:
+                    valid = True
+                
             self.add_terrain_to_map(terrain_top, terrain_bottom, i, j)
 
         self.vertices, self.triangles = [], []
@@ -251,7 +274,7 @@ def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0
     return terrain
 
 
-
+'''
 # ----------------- JAX -----------------
 
 def jit_plane_from_points(p1, p2, p3):
@@ -314,7 +337,7 @@ def jit_random_pyramid(key, terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, len
             height_field_raw = height_field_raw.at[xi, yi].set(f(x, y))
     
     return height_field_raw
-
+'''
 
 import numpy as np
 from matplotlib import pyplot as plt

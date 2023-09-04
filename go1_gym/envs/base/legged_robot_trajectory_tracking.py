@@ -301,11 +301,11 @@ class LeggedRobot(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
             self.command_sums["termination"] += rew
-
+        """ 
         self.command_sums["lin_vel_raw"] += self.base_lin_vel[:, 0]
         self.command_sums["ang_vel_raw"] += self.base_ang_vel[:, 2]
         self.command_sums["lin_vel_residual"] += (self.base_lin_vel[:, 0] - self.commands[:, 0]) ** 2
-        self.command_sums["ang_vel_residual"] += (self.base_ang_vel[:, 2] - self.commands[:, 2]) ** 2
+        self.command_sums["ang_vel_residual"] += (self.base_ang_vel[:, 2] - self.commands[:, 2]) ** 2 """
         self.command_sums["ep_timesteps"] += 1
 
     def compute_observations(self):
@@ -341,6 +341,12 @@ class LeggedRobot(BaseTask):
             else:
                 x_start = 0
             measured_heights_front = self.measured_heights[:, :, x_start:, :]
+            if self.cfg.env.camera_zero:
+                measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
+                measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.3)
+            else:
+                measured_heights_front = torch.clip(measured_heights_front, min=0, max=self.cfg.terrain.ceiling_height)
+
 
             # measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
             measured_heights_front = measured_heights_front.reshape(self.num_train_envs, -1) * self.obs_scales.height_measurements
@@ -713,11 +719,14 @@ class LeggedRobot(BaseTask):
         env_ids = torch.arange(self.num_envs).to(self.device)
         self._plan_target_pose(env_ids)
         self._compute_relative_target_pose(self.target_poses)
-        self.commands = torch.cat([
-            self.relative_linear[:, :2],  # relative x, y
-            self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
-            self.relative_rotation[:, 2:]  # relative yaw
-        ], axis=-1)
+        if self.cfg.env.command_xy_only:
+            self.commands = self.relative_linear[:, :2]
+        else:
+            self.commands = torch.cat([
+                self.relative_linear[:, :2],  # relative x, y
+                self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
+                self.relative_rotation[:, 2:]  # relative yaw
+            ], axis=-1)
 
         # push robots
         self._call_train_eval(self._push_robots, torch.arange(self.num_envs, device=self.device))
@@ -981,8 +990,9 @@ class LeggedRobot(BaseTask):
                                ), dim=0)
 
         if self.cfg.env.observe_command:
+            command_dim = 2 if self.cfg.env.command_xy_only else 6
             noise_vec = torch.cat((torch.ones(3) * noise_scales.gravity * noise_level,
-                                   torch.zeros(6),  # corresponding to the 6-DOF target pose
+                                   torch.zeros(command_dim),  # corresponding to the 6-DOF target pose
                                    torch.ones(
                                        self.num_actuated_dof) * noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos,
                                    torch.ones(
@@ -1127,8 +1137,11 @@ class LeggedRobot(BaseTask):
         )  # (num_envs, length of traj, poses dof=6)
         self.target_poses = torch.zeros_like(self.trajectories[:, 0, :])  # (num_envs, poses dof=6)
         self.curr_pose_index = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
-        self.commands = torch.zeros_like(self.trajectories[:, 0, :])  # (num_envs, poses dof=6)
-        # TODO: this is a dummy scale, add scale setting in the config file later
+        if self.cfg.env.command_xy_only:
+            self.commands = torch.zeros_like(self.trajectories[:, 0, :2])  # (num_envs, poses dof=6)  
+        else:  
+            self.commands = torch.zeros_like(self.trajectories[:, 0, :])  # (num_envs, poses dof=6)
+
         self.commands_scale = torch.ones_like(self.commands)
 
         self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float,

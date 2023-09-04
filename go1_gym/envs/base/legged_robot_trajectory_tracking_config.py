@@ -65,11 +65,14 @@ class Cfg(PrefixProto, cli=False):
 
         terminate_end_of_trajectory = False
         rotate_camera = True
+        camera_zero = False
+        command_xy_only = False
 
     class terrain(PrefixProto, cli=False):
         mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
         terrain_type = 'random_pyramid'  # in ["random", "random_pyramid"]
-        ceiling_height = 0.42
+        valid_tunnel_only = False
+        ceiling_height = 0.5
 
         # if all zero, it is deterministic starting position
         x_init_range = 0.

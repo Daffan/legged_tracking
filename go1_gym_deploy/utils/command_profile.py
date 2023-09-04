@@ -31,7 +31,7 @@ class DummyFrontGoalProfile(CommandProfile):
 
     def get_command(self, t):
         # this is a dummy command with the goal 1 meter at the front of the robot with a height of 0.29 and no orientation.
-        return np.array([1.0, 0.0, 0.29, 0.0, 0.0, 0.0])
+        return np.array([1.0, 0.0, 0.34, 0.0, 0.0, 0.0])
 
 class RandomTrajectoryProfile(CommandProfile):
     def __init__(

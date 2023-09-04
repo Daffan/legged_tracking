@@ -39,8 +39,16 @@ def train_go1(args):
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.terrain.measure_front_half = True
     Cfg.env.observe_heights = True
-    Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
-    Cfg.env.num_scalar_observations = 265  # 507
+
+    command_xy_only = True
+    if command_xy_only:
+        Cfg.env.command_xy_only = True
+        Cfg.env.num_observations = 261
+        Cfg.env.num_scalar_observations = 261
+    else:
+        Cfg.env.command_xy_only = False
+        Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
+        Cfg.env.num_scalar_observations = 265  # 507
     # Cfg.env.observe_heights = False
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
@@ -48,6 +56,8 @@ def train_go1(args):
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 10
+    Cfg.env.rotate_camera = False
+    Cfg.terrain.measure_front_half = True
 
     # asset
     # change to not terminate on, but just penalize base contact, 
@@ -90,13 +100,14 @@ def train_go1(args):
     else:
         # By default random pyramid terrain
         Cfg.terrain.terrain_type = 'random_pyramid'
+        Cfg.terrain.valid_tunnel_only = False
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
@@ -128,13 +139,13 @@ def train_go1(args):
     print(1000 * 4000 / (time.time() - start))
     import ipdb; ipdb.set_trace() """
 
-    RunnerArgs.save_video_interval = 200
+    RunnerArgs.save_video_interval = 200000000
 
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))
     if args.wandb:
-        wandb.init(project="go1_gym", config=vars(Cfg))
+        wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
 
     env = HistoryWrapper(env)
     gpu_id = 0
@@ -151,6 +162,7 @@ if __name__ == '__main__':
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--no_tunnel", action="store_true")
     parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--name", type=str, default="e2e")
     parser.add_argument("--r_task", type=float, default=200)
     parser.add_argument("--r_explore", type=float, default=1)
     parser.add_argument("--r_stalling", type=float, default=1)

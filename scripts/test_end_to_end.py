@@ -15,12 +15,12 @@ from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
 from tqdm import tqdm
 
-LOAD_PATH = "wandb/run-20230828_133920-jzv81je7/files"
+LOAD_PATH = "wandb/run-20230903_221111-2tbiy4ay/files"
 
 def load_policy(logdir):
-    body = torch.jit.load(logdir + '/files/checkpoints/body_latest.jit')
+    body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
     import os
-    adaptation_module = torch.jit.load(logdir + '/files/checkpoints/adaptation_module_latest.jit')
+    adaptation_module = torch.jit.load(logdir + '/checkpoints/adaptation_module_latest.jit')
 
     def policy(obs, info={}):
         i = 0
@@ -89,11 +89,12 @@ def load_env(logdir, headless=False):
         Cfg.terrain.pyramid_var_y=0.3
 
     Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.base_x = 1.0
+    Cfg.commands.base_x = 2.0
     Cfg.commands.base_y = 0.0
     Cfg.curriculum_thresholds.cl_fix_target = False
     Cfg.env.rotate_camera = True
     Cfg.terrain.measure_front_half = True
+    Cfg.env.camera_zero = False
 
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
 
@@ -128,7 +129,7 @@ def play_go1(headless=True):
     joint_positions = np.zeros((num_eval_steps, 12))
 
     obs = env.reset()
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
     for i in tqdm(range(num_eval_steps)):
         with torch.no_grad():

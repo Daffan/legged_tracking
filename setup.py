@@ -15,6 +15,5 @@ setup(
                       'gym>=0.14.0',
                       'tqdm',
                       'matplotlib',
-                      'numpy==1.23.5'
                       ]
 )
