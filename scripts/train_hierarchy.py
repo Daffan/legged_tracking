@@ -37,12 +37,22 @@ def train_go1(headless=True):
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
-    Cfg.env.num_observations = 507
-    Cfg.env.num_scalar_observations = 507
+    
+    command_xy_only = True
+    if command_xy_only:
+        Cfg.env.command_xy_only = True
+        Cfg.env.num_observations = 261
+        Cfg.env.num_scalar_observations = 261
+    else:
+        Cfg.env.command_xy_only = False
+        Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
+        Cfg.env.num_scalar_observations = 265  # 507
     Cfg.env.num_observation_history = 1
-
-    # control
-    Cfg.control.control_type = 'P'
+    Cfg.env.look_from_back = True
+    Cfg.env.terminate_end_of_trajectory = True
+    Cfg.env.episode_length_s = 20
+    Cfg.env.rotate_camera = False
+    Cfg.terrain.measure_front_half = True
 
     # rewards
     Cfg.reward_scales.task = 0.0
@@ -60,8 +70,6 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_pitch = -0.5
     Cfg.reward_scales.reaching_yaw = 0.6  # 0.3
 
-
-    # terrain
     # terrain
     if args.no_tunnel:
         Cfg.terrain.mesh_type = 'plane'
@@ -73,8 +81,8 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_width = 3.2
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=5
-        Cfg.terrain.pyramid_num_y=3
+        Cfg.terrain.pyramid_num_x=3
+        Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
 
@@ -90,7 +98,7 @@ def train_go1(headless=True):
         Cfg.commands.traj_function = "fixed_target"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
-        Cfg.commands.base_x = 6.0
+        Cfg.commands.base_x = 3.5
         Cfg.commands.sampling_based_planning = True
         Cfg.commands.plan_interval = 10
     

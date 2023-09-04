@@ -55,7 +55,7 @@ def train_go1(args):
     Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
-    Cfg.env.episode_length_s = 10
+    Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = False
     Cfg.terrain.measure_front_half = True
 
@@ -124,9 +124,9 @@ def train_go1(args):
     Cfg.commands.switch_dist = 0.25
     Cfg.curriculum_thresholds.cl_fix_target = True
     Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
-    Cfg.curriculum_thresholds.cl_goal_target_dist = 4.0
+    Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
     Cfg.curriculum_thresholds.cl_switch_delta = 0.2
-    Cfg.curriculum_thresholds.cl_switch_threshold = 0.8
+    Cfg.curriculum_thresholds.cl_switch_threshold = 0.6
 
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
     """ 

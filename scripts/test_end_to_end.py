@@ -62,6 +62,7 @@ def load_env(logdir, headless=False):
 
     Cfg.env.num_recording_envs = 1
     Cfg.env.num_envs = 1
+    Cfg.env.look_from_back = True
     Cfg.terrain.num_rows = 1
     Cfg.terrain.num_cols = 1
     Cfg.terrain.border_size = 0
@@ -73,7 +74,7 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_lag_timesteps = True
     Cfg.control.control_type = "actuator_net"
 
-    if True:
+    if False:
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain

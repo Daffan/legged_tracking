@@ -37,7 +37,10 @@ from scipy import interpolate
 
 from isaacgym import terrain_utils
 from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
-from go1_gym.utils.planner import valid_checking
+try:
+    from go1_gym.utils.planner import valid_checking
+except:
+    pass
 
 # import jax.numpy as jnp
 # from jax import jit
@@ -93,15 +96,18 @@ class Terrain:
                 start_state = np.array([-0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
                 goal_state = np.array([0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
                 if cfg.valid_tunnel_only:
-                    valid = valid_checking(
-                        elevation_map,
-                        start_state,
-                        goal_state,
-                        self.env_length,
-                        self.env_width,
-                        self.terrain_ratio_y,
-                        self.horizontal_scale,
-                    )
+                    try:
+                        valid = valid_checking(
+                            elevation_map,
+                            start_state,
+                            goal_state,
+                            self.env_length,
+                            self.env_width,
+                            self.terrain_ratio_y,
+                            self.horizontal_scale,
+                        )
+                    except:
+                        valid = True
                 else:
                     valid = True
                 
