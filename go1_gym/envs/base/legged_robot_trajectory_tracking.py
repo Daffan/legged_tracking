@@ -210,6 +210,7 @@ class LeggedRobot(BaseTask):
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
         self.reset_buf[env_ids] = 1
+        self.local_relative_linear[env_ids] = 0
         # fill extras
         train_env_ids = env_ids[env_ids < self.num_train_envs]
         if len(train_env_ids) > 0:
@@ -719,11 +720,12 @@ class LeggedRobot(BaseTask):
         env_ids = torch.arange(self.num_envs).to(self.device)
         self._plan_target_pose(env_ids)
         self.relative_linear, self.relative_rotation = self._compute_relative_target_pose(self.target_poses)
+        self._set_the_target_pose_visual(torch.arange(self.num_envs, device=self.device), self.local_target_poses)
         if self.cfg.env.command_xy_only:
-            self.commands = self.relative_linear[:, :2]
+            self.commands = self.local_relative_linear[:, :2]
         else:
             self.commands = torch.cat([
-                self.relative_linear[:, :2],  # relative x, y
+                self.local_relative_linear[:, :2],  # relative x, y
                 self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
                 self.relative_rotation[:, 2:]  # relative yaw
             ], axis=-1)
@@ -770,7 +772,7 @@ class LeggedRobot(BaseTask):
             if len(plan_env_ids) > 0:
                 self.last_plan_step = 1
                 target_poses = []
-                goal_poses = self.trajectories[env_ids, self.curr_pose_index[plan_env_ids]]
+                goal_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids]]
                 for env_id in plan_env_ids:
                     candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
                     goal_pose = goal_poses[env_id]
@@ -793,7 +795,11 @@ class LeggedRobot(BaseTask):
                     height_points_cand = quat_apply_yaw_inverse(candidate_target_poses_quat.repeat(height_points_cand.shape[0], 1), height_points_cand.view(-1, 3)).view(*height_points_cand.shape)
                     height_points_cand = torch.norm(height_points_cand / self.robot_size[None, None, :], dim=-1) > 1.0
                     cands_idx = torch.all(height_points_cand, dim=0)
-                    target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
+                    if torch.any(cands_idx):
+                        target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
+                    else:
+                        print("env_%d has no valid local goal" %env_id)
+                        target_pose_env = candidate_target_poses_env[0, :]
                     # bring the target pose to world frame 
                     # target_pose_env[:2] += self.base_pos[env_id, :2]
                     base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat[env_id][None, :])[0]
@@ -816,15 +822,14 @@ class LeggedRobot(BaseTask):
         relative_linear = quat_apply_yaw_inverse(self.base_quat, relative_linear)
         relative_rotation = target_poses[:, 3:] - quaternion_to_roll_pitch_yaw(self.base_quat)
         relative_rotation = wrap_to_pi(relative_rotation)
-        self._set_the_target_pose_visual(torch.arange(self.num_envs, device=self.device))
         return relative_linear, relative_rotation
 
-    def _set_the_target_pose_visual(self, env_ids):
+    def _set_the_target_pose_visual(self, env_ids, target_poses):
         """ This function sets the visualization of the target pose 
             with a green coordinate frame.
         """
-        linear = self.target_poses[env_ids, :3]  # self.trajectories[env_ids, self.curr_pose_index[env_ids], :3]
-        rotation = self.target_poses[env_ids, 3:]  #  self.trajectories[env_ids, self.curr_pose_index[env_ids], 3:]
+        linear = target_poses[env_ids, :3]  # self.trajectories[env_ids, self.curr_pose_index[env_ids], :3]
+        rotation = target_poses[env_ids, 3:]  #  self.trajectories[env_ids, self.curr_pose_index[env_ids], 3:]
         arrow_actor_ids = (env_ids + 1) * self.num_actor - 1
         self.root_states[arrow_actor_ids, :3] = linear
         target_quat = quat_from_euler_xyz(rotation[:, 0], rotation[:, 1], rotation[:, 2])
@@ -1141,6 +1146,8 @@ class LeggedRobot(BaseTask):
         self.target_poses = torch.zeros_like(self.trajectories[:, 0, :])  # (num_envs, poses dof=6)
         self.curr_pose_index = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.local_relative_linear = torch.zeros_like(self.target_poses[:, :3])
+        self.local_target_poses = torch.zeros_like(self.target_poses)
+        self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         if self.cfg.env.command_xy_only:
             self.commands = torch.zeros_like(self.trajectories[:, 0, :2])  # (num_envs, poses dof=6)  
         else:  

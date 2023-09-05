@@ -55,20 +55,25 @@ def train_go1(headless=True):
     Cfg.terrain.measure_front_half = True
 
     # rewards
-    Cfg.reward_scales.task = 0.0
-    Cfg.reward_scales.exploration = 0.0
-    Cfg.reward_scales.stalling = 0.0
+    Cfg.rewards.T_reach = 200
+    Cfg.rewards.small_vel_threshold = 0.05
+    Cfg.rewards.large_dist_threshold = 0.5
+    Cfg.rewards.only_positive_rewards = False
+    Cfg.rewards.use_terminal_body_height = False
 
     Cfg.reward_scales.torques = -0.00001  # -0.0002
     Cfg.reward_scales.dof_acc = -2.5e-7
     Cfg.reward_scales.orientation = 0.0
     Cfg.reward_scales.collision = -1.
     Cfg.reward_scales.action_rate = -0.01
-    Cfg.reward_scales.reaching_linear_vel = 1.2  # 0.6
-    Cfg.reward_scales.reaching_z = -10.0
-    Cfg.reward_scales.reaching_roll = -0.5
-    Cfg.reward_scales.reaching_pitch = -0.5
-    Cfg.reward_scales.reaching_yaw = 0.6  # 0.3
+    Cfg.reward_scales.reaching_local_goal = 10
+    Cfg.reward_scales.reach_goal = 100
+
+    Cfg.reward_scales.reaching_linear_vel = 0
+    Cfg.reward_scales.reaching_z = 0
+    Cfg.reward_scales.reaching_roll = 0
+    Cfg.reward_scales.reaching_pitch = 0
+    Cfg.reward_scales.reaching_yaw = 0
 
     # terrain
     if args.no_tunnel:
@@ -81,12 +86,14 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_width = 3.2
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=3
+        Cfg.terrain.pyramid_num_x=6
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
 
     # goal
+    Cfg.commands.switch_dist = 0.2
+    Cfg.curriculum_thresholds.cl_fix_target = False
     if args.random_target:
         Cfg.commands.traj_function = "random_target"
         Cfg.commands.traj_length = 10
@@ -102,7 +109,7 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = True
         Cfg.commands.plan_interval = 10
     
-
+    RunnerArgs.save_video_interval = 200000000
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
     """ Speed test
     import time
@@ -116,7 +123,7 @@ def train_go1(headless=True):
     """
 
     if args.wandb:
-        wandb.init(project="go1_gym", config=vars(Cfg))
+        wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
 
     env = HistoryWrapper(env)
     gpu_id = 0
@@ -134,6 +141,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_tunnel", action="store_true")
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--name", type=str, default="hybrid")
     args = parser.parse_args()
 
     stem = Path(__file__).stem
