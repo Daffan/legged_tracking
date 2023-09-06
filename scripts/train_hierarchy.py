@@ -54,6 +54,11 @@ def train_go1(headless=True):
     Cfg.env.rotate_camera = False
     Cfg.terrain.measure_front_half = True
 
+    # asset
+    # change to not terminate on, but just penalize base contact, 
+    Cfg.asset.penalize_contacts_on = ["thigh", "calf", "base"]
+    Cfg.asset.terminate_after_contacts_on = []
+
     # rewards
     Cfg.rewards.T_reach = 200
     Cfg.rewards.small_vel_threshold = 0.05
@@ -61,19 +66,18 @@ def train_go1(headless=True):
     Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.use_terminal_body_height = False
 
-    Cfg.reward_scales.torques = -0.00001  # -0.0002
-    Cfg.reward_scales.dof_acc = -2.5e-7
-    Cfg.reward_scales.orientation = 0.0
-    Cfg.reward_scales.collision = -1.
-    Cfg.reward_scales.action_rate = -0.01
     Cfg.reward_scales.reaching_local_goal = 10
     Cfg.reward_scales.reach_goal = 100
+    Cfg.reward_scales.reaching_z = -5.0
 
-    Cfg.reward_scales.reaching_linear_vel = 0
-    Cfg.reward_scales.reaching_z = 0
-    Cfg.reward_scales.reaching_roll = 0
-    Cfg.reward_scales.reaching_pitch = 0
-    Cfg.reward_scales.reaching_yaw = 0
+    Cfg.reward_scales.dof_acc = -2.5e-7 * 2
+    Cfg.reward_scales.torques = -1e-5 * 2
+    Cfg.reward_scales.dof_pos_limits = -10.0 * 2
+    Cfg.reward_scales.collision = -1.0
+    Cfg.reward_scales.action_rate = -0.01
+    Cfg.reward_scales.orientation = 0.0  # -5.0
+    Cfg.reward_scales.reaching_z = 0.0
+    Cfg.reward_scales.base_height = 0.0
 
     # terrain
     if args.no_tunnel:
@@ -107,9 +111,9 @@ def train_go1(headless=True):
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 3.5
         Cfg.commands.sampling_based_planning = True
-        Cfg.commands.plan_interval = 10
+        Cfg.commands.plan_interval = 10000
     
-    RunnerArgs.save_video_interval = 200000000
+    RunnerArgs.save_video_interval = 500000000
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
     """ Speed test
     import time
@@ -128,7 +132,7 @@ def train_go1(headless=True):
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100)
 
 
 if __name__ == '__main__':

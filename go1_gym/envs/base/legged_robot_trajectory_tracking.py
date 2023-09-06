@@ -767,13 +767,15 @@ class LeggedRobot(BaseTask):
         self.target_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
         if self.cfg.commands.sampling_based_planning:
             # sampling-based planning
-            self.plan_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
-            plan_env_ids = self.plan_buf.nonzero(as_tuple=False).flatten()
-            if len(plan_env_ids) > 0:
-                self.last_plan_step = 1
+            self.plan_length_buf += 1
+            self.plan_reach_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
+            self.plan_switch_buf = self.plan_length_buf > self.cfg.commands.plan_interval
+            plan_switch_id = torch.logical_or(self.plan_reach_buf, self.plan_switch_buf).nonzero(as_tuple=False).flatten()
+            if len(plan_switch_id) > 0:
                 target_poses = []
+                self.plan_length_buf[plan_switch_id] = 0
                 goal_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids]]
-                for env_id in plan_env_ids:
+                for env_id in plan_switch_id:
                     candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
                     goal_pose = goal_poses[env_id]
                     goal_pose[:2] -= self.base_pos[env_id, :2].clone()
@@ -806,7 +808,7 @@ class LeggedRobot(BaseTask):
                     target_pose_env[:2] = quat_apply_yaw(self.base_quat[[env_id]], target_pose_env[None, :3])[0, :2] + self.base_pos[env_id, :2]
                     target_pose_env[-1] = wrap_to_pi(target_pose_env[-1] + base_rotation[-1])
                     target_poses.append(target_pose_env)
-                self.local_target_poses[plan_env_ids, ...] = torch.stack(target_poses, dim=0)
+                self.local_target_poses[plan_switch_id, ...] = torch.stack(target_poses, dim=0)
         else:
             self.local_target_poses = self.target_poses
         
@@ -1148,6 +1150,9 @@ class LeggedRobot(BaseTask):
         self.local_relative_linear = torch.zeros_like(self.target_poses[:, :3])
         self.local_target_poses = torch.zeros_like(self.target_poses)
         self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
+
+        self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+
         if self.cfg.env.command_xy_only:
             self.commands = torch.zeros_like(self.trajectories[:, 0, :2])  # (num_envs, poses dof=6)  
         else:  
@@ -1520,7 +1525,8 @@ class LeggedRobot(BaseTask):
 
             try:
                 self.height_frame = self.get_height_frame(env_id)  # self.measured_heights.detach().cpu().numpy()
-            except:
+            except Exception as e:
+                print(e)
                 pass
             self.height_frames.append(self.height_frame)
 

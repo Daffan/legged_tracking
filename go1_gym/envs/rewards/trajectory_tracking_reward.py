@@ -86,7 +86,7 @@ class TrajectoryTrackingRewards:
         return r
 
     def _reward_reaching_local_goal(self):
-        return self.env.plan_buf.float()
+        return self.env.plan_reach_buf.float()
     
     def _reward_stalling(self):
         small_vel = torch.norm(self.env.base_lin_vel[:, :2], dim=1) < self.env.cfg.rewards.small_vel_threshold
