@@ -43,7 +43,7 @@ class LCMAgent():
         self.num_envs = 1
         self.num_privileged_obs = self.cfg["env"]["num_privileged_obs"]
         self.num_actions = self.cfg["env"]["num_actions"]
-        self.num_commands = self.cfg["commands"]["num_commands"]
+        self.num_commands = 6 #self.cfg["commands"]["num_commands"]
         self.device = 'cpu'
 
         if "obs_scales" in self.cfg.keys():
@@ -127,7 +127,6 @@ class LCMAgent():
         self.is_currently_probing = is_currently_probing
 
     def get_obs(self):
-
         self.gravity_vector = self.se.get_gravity_vector()
         cmds, reset_timer = self.command_profile.get_command(self.timestep * self.dt)
         self.commands[:, :] = cmds[:self.num_commands]
@@ -139,21 +138,24 @@ class LCMAgent():
         self.dof_vel = self.se.get_dof_vel()
         self.body_linear_vel = self.se.get_body_linear_vel()
         self.body_angular_vel = self.se.get_body_angular_vel()
-
         ob = np.concatenate((self.gravity_vector.reshape(1, -1),
-                             self.commands * self.commands_scale,
-                             (self.dof_pos - self.default_dof_pos).reshape(1, -1) * self.obs_scales["dof_pos"],
-                             self.dof_vel.reshape(1, -1) * self.obs_scales["dof_vel"],
-                             torch.clip(self.actions, -self.cfg["normalization"]["clip_actions"],
+                            self.commands * self.commands_scale.cpu().detach().numpy(),
+                            (self.dof_pos - self.default_dof_pos).reshape(1, -1) * self.obs_scales["dof_pos"],
+                            self.dof_vel.reshape(1, -1) * self.obs_scales["dof_vel"],
+                            torch.clip(self.actions, -self.cfg["normalization"]["clip_actions"],
                                         self.cfg["normalization"]["clip_actions"]).cpu().detach().numpy().reshape(1, -1)
-                             ), axis=1)
+                            ), axis=1)
         
         if self.cfg["env"]["observe_heights"]:
             # ------------- ADD YOUR CODE TO GET HEIGHT MEASUREMENTS HERE ----------------
             # recommand adding a function in cheetah_state_estimator.py to get the height measurements
             # (2, num_points_x, num_points_y)
-            self.measured_heights = np.ones(
-                (2, len(self.cfg["terrain"]["measured_points_x"]), len(self.cfg["terrain"]["measured_points_y"])))
+            # self.measured_heights = np.ones((
+            #     2, len(self.cfg["terrain"]["measured_points_x"]),
+            #     len(self.cfg["terrain"]["measured_points_y"]))
+            # )
+
+            self.measured_heights = np.ones((2, 10,11))
             self.measured_heights[1, ...] = 0  # dummy values have bottom 0 and top 1  
 
             # ----------------------------------------------------------------------------
@@ -189,7 +191,7 @@ class LCMAgent():
             ob = np.concatenate((ob, self.contact_state.reshape(1, -1)), axis=-1)
 
         """ 
-        if "terrain" in self.cfg.keys() and self.cfg["terrain"]["measure_heights"]:
+        if "terrain" in self.cfg.keys() and self.cfheading_commandg["terrain"]["measure_heights"]:
             robot_height = 0.25
             self.measured_heights = np.zeros(
                 (len(self.cfg["terrain"]["measured_points_x"]), len(self.cfg["terrain"]["measured_points_y"]))).reshape(
@@ -252,7 +254,7 @@ class LCMAgent():
         if self.timestep % 100 == 0: print(f'frq: {1 / (time.time() - self.time)} Hz');
         self.time = time.time()
         obs = self.get_obs()
-
+        '''
         # clock accounting
         frequencies = self.commands[:, 4]
         phases = self.commands[:, 5]
@@ -316,4 +318,6 @@ class LCMAgent():
                  }
 
         self.timestep += 1
+        '''
+        infos = {"privileged_obs": None}
         return obs, None, None, infos

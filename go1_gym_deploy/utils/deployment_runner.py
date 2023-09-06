@@ -64,6 +64,7 @@ class DeploymentRunner:
 
     def calibrate(self, wait=True, low=False):
         # first, if the robot is not in nominal pose, move slowly to the nominal pose
+        print("Start to caliberate!")
         for agent_name in self.agents.keys():
             if hasattr(self.agents[agent_name], "get_obs"):
                 agent = self.agents[agent_name]
@@ -77,14 +78,13 @@ class DeploymentRunner:
                 else:
                     final_goal = np.zeros(12)
                 nominal_joint_pos = agent.default_dof_pos
-
+                
                 print(f"About to calibrate; the robot will stand [Press R2 to calibrate]")
                 while wait:
                     self.button_states = self.command_profile.get_buttons()
                     if self.command_profile.state_estimator.right_lower_right_switch_pressed:
                         self.command_profile.state_estimator.right_lower_right_switch_pressed = False
                         break
-
                 cal_action = np.zeros((agent.num_envs, agent.num_actions))
                 target_sequence = []
                 target = joint_pos - nominal_joint_pos
@@ -126,15 +126,16 @@ class DeploymentRunner:
         assert self.control_agent_name is not None, "cannot deploy, runner has no control agent!"
         assert self.policy is not None, "cannot deploy, runner has no policy!"
         assert self.command_profile is not None, "cannot deploy, runner has no command profile!"
-
         # TODO: add basic test for comms
-
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         for agent_name in self.agents.keys():
             obs = self.agents[agent_name].reset()
+            print(f"agent {agent_name} reseted")
             if agent_name == self.control_agent_name:
                 control_obs = obs
-
+        #import pdb; pdb.set_trace()
         control_obs = self.calibrate(wait=True)
+        print("finish calibration!")
 
         # now, run control loop
 
@@ -143,7 +144,7 @@ class DeploymentRunner:
 
                 policy_info = {}
                 action = self.policy(control_obs, policy_info)
-
+                print("The actions are ", action)
                 for agent_name in self.agents.keys():
                     obs, ret, done, info = self.agents[agent_name].step(action)
 
@@ -154,7 +155,10 @@ class DeploymentRunner:
                     if logging: self.logger.log(agent_name, info)
 
                     if agent_name == self.control_agent_name:
+                        #import pdb; pdb.set_trace()
                         control_obs, control_ret, control_done, control_info = obs, ret, done, info
+                        print("<<<<<<<<",obs["obs_history"])
+                        #aaa
 
                 # bad orientation emergency stop
                 rpy = self.agents[self.control_agent_name].se.get_rpy()

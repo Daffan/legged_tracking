@@ -27,11 +27,38 @@ class DummyFrontGoalProfile(CommandProfile):
     ):
         super().__init__(dt, max_time_s)
         self.dt = dt
-        self.se = state_estimator
+        self.state_estimator = state_estimator
+        self.currently_triggered = [0, 0, 0, 0]
+        self.triggered_commands = {i: None for i in range(4)}
+        self.button_states = [0, 0, 0, 0]
 
     def get_command(self, t):
         # this is a dummy command with the goal 1 meter at the front of the robot with a height of 0.29 and no orientation.
-        return np.array([1.0, 0.0, 0.34, 0.0, 0.0, 0.0])
+        # check for action buttons
+        prev_button_states = self.button_states[:]
+        self.button_states = self.state_estimator.get_buttons()
+        for button in range(4):
+            if self.triggered_commands[button] is not None:
+                if self.button_states[button] == 1 and prev_button_states[button] == 0:
+                    if not self.currently_triggered[button]:
+                        # reset the triggered action
+                        self.triggered_commands[button].reset(t)
+                        # reset the internal timing variable
+                        reset_timer = True
+                        self.currently_triggered[button] = True
+                    else:
+                        self.currently_triggered[button] = False
+                # execute the triggered action
+                if self.currently_triggered[button] and t < self.triggered_commands[button].max_timestep:
+                    command = self.triggered_commands[button].get_command(t)
+        
+        return np.array([0.2, 0.0, 0.29, 0.0, 0.0, 0.0]), False
+
+    def add_triggered_command(self, button_idx, command_profile):
+        self.triggered_commands[button_idx] = command_profile
+
+    def get_buttons(self):
+        return self.state_estimator.get_buttons()
 
 class RandomTrajectoryProfile(CommandProfile):
     def __init__(
@@ -64,7 +91,7 @@ class RandomTrajectoryProfile(CommandProfile):
         self.start_time = 0
         self.trajectory = self._traj_fn_random_target()
 
-    def get_command(self, t):
+    '''def get_command(self, t):
         xy, yaw = self.se.get_xy_yaw()  # xy: (2,), yaw: scalar
         if not self.switch_upon_reach:
             curr_timestep = int((t - self.start_time) / self.dt)
@@ -82,7 +109,9 @@ class RandomTrajectoryProfile(CommandProfile):
             rel_yaw = self._wrap_to_pi(curr_pose[5] - yaw)
             return np.concatenate([rel_xy, curr_pose[2:5], [rel_yaw]]), reset_timer
         else:
-            raise NotImplementedError
+            raise NotImplementedError'''
+    def get_command(self, t):
+        return np.array([1.0, 0.0, 0.29, 0, 0, 0]), False
     
     def _apply_yaw_inverse(self, yaw, xy):
         return np.array([
@@ -122,6 +151,9 @@ class RandomTrajectoryProfile(CommandProfile):
         xy, _ = self.se.get_xy_yaw()
         target_pose_interp[:, :2] += xy.reshape(1, -1)
         return target_pose_interp  # (traj_length, 6)
+
+    def get_buttons(self):
+        return self.state_estimator.get_buttons()
 
 
 class ConstantAccelerationProfile(CommandProfile):

@@ -3,6 +3,8 @@ import pickle as pkl
 import lcm
 import sys
 import torch
+import traceback
+sys.path.append("../..")
 
 from go1_gym_deploy.utils.deployment_runner import DeploymentRunner
 from go1_gym_deploy.envs.lcm_traj_agent import LCMAgent
@@ -22,7 +24,7 @@ def load_and_run_policy(label, experiment_name):
     with open(logdir+"/parameters.pkl", 'rb') as file:
         pkl_cfg = pkl.load(file)
         print(pkl_cfg.keys())
-        cfg = pkl_cfg["Cfg"]
+        cfg = pkl_cfg
         print(cfg.keys())
 
 
@@ -53,8 +55,12 @@ def load_and_run_policy(label, experiment_name):
     else:
         max_steps = 10000000
     print(f'max steps {max_steps}')
-
-    deployment_runner.run(max_steps=max_steps, logging=True)
+    try:
+        deployment_runner.run(max_steps=max_steps, logging=True)
+    except Exception as e:
+        print("########################## Error ##########################")
+        print(traceback.format_exc())
+        print("########################## Error ##########################")
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')

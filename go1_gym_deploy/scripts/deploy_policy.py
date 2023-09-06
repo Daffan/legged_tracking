@@ -2,6 +2,7 @@ import glob
 import pickle as pkl
 import lcm
 import sys
+sys.path.append("../..")
 
 from go1_gym_deploy.utils.deployment_runner import DeploymentRunner
 from go1_gym_deploy.envs.lcm_agent import LCMAgent
@@ -21,7 +22,7 @@ def load_and_run_policy(label, experiment_name, max_vel=1.0, max_yaw_vel=1.0):
         pkl_cfg = pkl.load(file)
         print(pkl_cfg.keys())
         cfg = pkl_cfg["Cfg"]
-        print(cfg.keys())
+        # print(cfg.keys())
 
 
     se = StateEstimator(lc)
@@ -39,6 +40,7 @@ def load_and_run_policy(label, experiment_name, max_vel=1.0, max_yaw_vel=1.0):
 
     # load runner
     root = f"{pathlib.Path(__file__).parent.resolve()}/../../logs/"
+    print(f"logging to {root}")
     pathlib.Path(root).mkdir(parents=True, exist_ok=True)
     deployment_runner = DeploymentRunner(experiment_name=experiment_name, se=None,
                                          log_root=f"{root}/{experiment_name}")
