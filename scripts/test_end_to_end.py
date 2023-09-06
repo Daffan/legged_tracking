@@ -15,7 +15,7 @@ from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
 from tqdm import tqdm
 
-LOAD_PATH = "wandb/run-20230903_221111-2tbiy4ay/files"
+LOAD_PATH = "wandb/run-20230904_112307-rhi1my71/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -74,7 +74,7 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_lag_timesteps = True
     Cfg.control.control_type = "actuator_net"
 
-    if False:
+    if True:
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain

@@ -1,0 +1,54 @@
+Adaptation Module: Sequential(
+  (0): Linear(in_features=261, out_features=256, bias=True)
+  (1): ELU(alpha=1.0)
+  (2): Linear(in_features=256, out_features=128, bias=True)
+  (3): ELU(alpha=1.0)
+  (4): Linear(in_features=128, out_features=6, bias=True)
+)
+Actor MLP: Sequential(
+  (0): Linear(in_features=267, out_features=512, bias=True)
+  (1): ELU(alpha=1.0)
+  (2): Linear(in_features=512, out_features=256, bias=True)
+  (3): ELU(alpha=1.0)
+  (4): Linear(in_features=256, out_features=128, bias=True)
+  (5): ELU(alpha=1.0)
+  (6): Linear(in_features=128, out_features=12, bias=True)
+)
+Critic MLP: Sequential(
+  (0): Linear(in_features=267, out_features=512, bias=True)
+  (1): ELU(alpha=1.0)
+  (2): Linear(in_features=512, out_features=256, bias=True)
+  (3): ELU(alpha=1.0)
+  (4): Linear(in_features=256, out_features=128, bias=True)
+  (5): ELU(alpha=1.0)
+  (6): Linear(in_features=128, out_features=1, bias=True)
+)
+[34m[1mwandb[39m[22m: [33mWARNING[39m Saving files without folders. If you want to preserve sub directories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+/scratch/cluster/zifan/isaacgym/python/isaacgym/torch_utils.py:16: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  return torch.tensor(x, dtype=dtype, device=device, requires_grad=requires_grad)
+/scratch/cluster/zifan/miniconda3/envs/legged/lib/python3.8/site-packages/numpy/core/fromnumeric.py:3432: RuntimeWarning: Mean of empty slice.
+  return _methods._mean(a, axis=axis, dtype=dtype,
+/scratch/cluster/zifan/miniconda3/envs/legged/lib/python3.8/site-packages/numpy/core/_methods.py:190: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+Traceback (most recent call last):
+  File "scripts/train_end_to_end_2.py", line 174, in <module>
+    train_go1(args)
+  File "scripts/train_end_to_end_2.py", line 153, in train_go1
+    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100)
+  File "/u/zifan/legged_tracking/go1_gym_learn/ppo_cse/__init__.py", line 160, in learn
+    ret = self.env.step(torch.cat((actions_train, actions_eval), dim=0))
+  File "/u/zifan/legged_tracking/go1_gym/envs/wrappers/history_wrapper.py", line 20, in step
+    obs, rew, done, info = self.env.step(action)
+  File "/u/zifan/legged_tracking/go1_gym/envs/go1/trajectory_tracking/__init__.py", line 23, in step
+    self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras = super().step(actions)
+  File "/u/zifan/legged_tracking/go1_gym/envs/base/legged_robot_trajectory_tracking.py", line 83, in step
+    self.post_physics_step()
+  File "/u/zifan/legged_tracking/go1_gym/envs/base/legged_robot_trajectory_tracking.py", line 119, in post_physics_step
+    self._post_physics_step_callback()
+  File "/u/zifan/legged_tracking/go1_gym/envs/base/legged_robot_trajectory_tracking.py", line 717, in _post_physics_step_callback
+    self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device))
+  File "/u/zifan/legged_tracking/go1_gym/envs/base/legged_robot_trajectory_tracking.py", line 1707, in _get_heights
+    py = torch.clip(py, 0, self.env_height_samples.shape[3]-2)
+  File "/u/zifan/legged_tracking/go1_gym/envs/base/legged_robot_trajectory_tracking.py", line 1707, in <listcomp>
+    py = torch.clip(py, 0, self.env_height_samples.shape[3]-2)
+KeyboardInterrupt

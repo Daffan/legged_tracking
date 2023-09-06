@@ -23,7 +23,8 @@ class CommandProfile:
 class DummyFrontGoalProfile(CommandProfile):
     def __init__(
         self, dt, state_estimator,
-        max_time_s=10.
+        max_time_s=10.,
+        command_xy_only=True
     ):
         super().__init__(dt, max_time_s)
         self.dt = dt
@@ -31,6 +32,7 @@ class DummyFrontGoalProfile(CommandProfile):
         self.currently_triggered = [0, 0, 0, 0]
         self.triggered_commands = {i: None for i in range(4)}
         self.button_states = [0, 0, 0, 0]
+        self.command_xy_only = command_xy_only
 
     def get_command(self, t):
         # this is a dummy command with the goal 1 meter at the front of the robot with a height of 0.29 and no orientation.
@@ -51,8 +53,10 @@ class DummyFrontGoalProfile(CommandProfile):
                 # execute the triggered action
                 if self.currently_triggered[button] and t < self.triggered_commands[button].max_timestep:
                     command = self.triggered_commands[button].get_command(t)
-        
-        return np.array([0.2, 0.0, 0.29, 0.0, 0.0, 0.0]), False
+        if self.command_xy_only:
+            return np.array([1.0, 0.0]), False
+        else:
+            return np.array([1.0, 0.0, 0.34, 0.0, 0.0, 0.0]), False
 
     def add_triggered_command(self, button_idx, command_profile):
         self.triggered_commands[button_idx] = command_profile

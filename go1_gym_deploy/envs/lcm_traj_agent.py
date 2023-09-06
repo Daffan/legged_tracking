@@ -155,7 +155,7 @@ class LCMAgent():
             #     len(self.cfg["terrain"]["measured_points_y"]))
             # )
 
-            self.measured_heights = np.ones((2, 10, 11))
+            self.measured_heights = np.ones((2, 10, 11)) * self.cfg["terrain"]["ceiling_height"]
             self.measured_heights[1, ...] = 0  # dummy values have bottom 0 and top 1  
 
             # ----------------------------------------------------------------------------

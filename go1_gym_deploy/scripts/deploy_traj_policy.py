@@ -31,7 +31,7 @@ def load_and_run_policy(label, experiment_name):
     se = StateEstimator(lc)
 
     control_dt = 0.02
-    command_profile = DummyFrontGoalProfile(dt=control_dt, state_estimator=se)
+    command_profile = DummyFrontGoalProfile(dt=control_dt, state_estimator=se, command_xy_only=cfg["env"]["command_xy_only"])
 
     hardware_agent = LCMAgent(cfg, se, command_profile)
     se.spin()
@@ -78,7 +78,7 @@ def load_policy(logdir):
 
 
 if __name__ == '__main__':
-    label = "trajectory_tracking"
+    label = "trajectory_tracking/run-20230904_112307-rhi1my71"
 
     experiment_name = "example_experiment"
 
