@@ -35,11 +35,13 @@ def load_and_run_policy(label, experiment_name):
 
     hardware_agent = LCMAgent(cfg, se, command_profile)
     se.spin()
+    print("Initialized the agent")
 
     from go1_gym_deploy.envs.history_wrapper import HistoryWrapper
     hardware_agent = HistoryWrapper(hardware_agent)
 
     policy = load_policy(logdir)
+    print("Initialized the policy")
 
     # load runner
     root = f"{pathlib.Path(__file__).parent.resolve()}/../../logs/"
@@ -49,18 +51,15 @@ def load_and_run_policy(label, experiment_name):
     deployment_runner.add_control_agent(hardware_agent, "hardware_closed_loop")
     deployment_runner.add_policy(policy)
     deployment_runner.add_command_profile(command_profile)
+    print("Initialized the deployment runner")
 
     if len(sys.argv) >= 2:
         max_steps = int(sys.argv[1])
     else:
         max_steps = 10000000
     print(f'max steps {max_steps}')
-    try:
-        deployment_runner.run(max_steps=max_steps, logging=True)
-    except Exception as e:
-        print("########################## Error ##########################")
-        print(traceback.format_exc())
-        print("########################## Error ##########################")
+
+    deployment_runner.run(max_steps=max_steps, logging=True)
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -81,5 +80,9 @@ if __name__ == '__main__':
     label = "trajectory_tracking/run-20230904_112307-rhi1my71"
 
     experiment_name = "example_experiment"
-
-    load_and_run_policy(label, experiment_name=experiment_name)
+    try: 
+        load_and_run_policy(label, experiment_name=experiment_name)
+    except Exception as e:
+        print("########################## Error ##########################")
+        print(traceback.format_exc())
+        print("########################## Error ##########################")

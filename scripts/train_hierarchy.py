@@ -66,7 +66,9 @@ def train_go1(headless=True):
     Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.use_terminal_body_height = False
 
-    Cfg.reward_scales.reaching_local_goal = 10
+    Cfg.reward_scales.reaching_linear_vel = 0
+    Cfg.reward_scales.reaching_yaw = 0
+    Cfg.reward_scales.reaching_local_goal = 20
     Cfg.reward_scales.reach_goal = 100
     Cfg.reward_scales.reaching_z = -5.0
 
@@ -96,8 +98,6 @@ def train_go1(headless=True):
         Cfg.terrain.pyramid_var_y=0.3
 
     # goal
-    Cfg.commands.switch_dist = 0.2
-    Cfg.curriculum_thresholds.cl_fix_target = False
     if args.random_target:
         Cfg.commands.traj_function = "random_target"
         Cfg.commands.traj_length = 10
@@ -111,9 +111,21 @@ def train_go1(headless=True):
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 3.5
         Cfg.commands.sampling_based_planning = True
-        Cfg.commands.plan_interval = 10000
+        Cfg.commands.plan_interval = 100
+    Cfg.commands.traj_length = 1
+    Cfg.commands.num_interpolation = 1
+    Cfg.commands.x_mean = 0.2
+    Cfg.commands.y_mean = 0.0
+    Cfg.commands.x_range = 0.4
+    Cfg.commands.y_range = 0.0
+    Cfg.commands.switch_dist = 0.25
+    Cfg.curriculum_thresholds.cl_fix_target = True
+    Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
+    Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
+    Cfg.curriculum_thresholds.cl_switch_delta = 0.2
+    Cfg.curriculum_thresholds.cl_switch_threshold = 0.6
     
-    RunnerArgs.save_video_interval = 500000000
+    RunnerArgs.save_video_interval = 500
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
     """ Speed test
     import time
