@@ -18,8 +18,7 @@ lc = lcm.LCM("udpm://239.255.76.67:7667?ttl=255")
 
 def load_and_run_policy(label, experiment_name):
     # load agent
-    dirs = glob.glob(f"../../runs/{label}/*")
-    logdir = sorted(dirs)[0]
+    logdir = f"../../runs/{label}"
 
     with open(logdir+"/parameters.pkl", 'rb') as file:
         pkl_cfg = pkl.load(file)

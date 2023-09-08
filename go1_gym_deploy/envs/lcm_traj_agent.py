@@ -43,7 +43,7 @@ class LCMAgent():
         self.num_envs = 1
         self.num_privileged_obs = self.cfg["env"]["num_privileged_obs"]
         self.num_actions = self.cfg["env"]["num_actions"]
-        self.num_commands = 6 #self.cfg["commands"]["num_commands"]
+        self.num_commands = 2 #self.cfg["commands"]["num_commands"]
         self.device = 'cpu'
 
         if "obs_scales" in self.cfg.keys():
@@ -62,7 +62,7 @@ class LCMAgent():
              ])[:self.num_commands] 
         """
 
-        self.commands_scale = torch.ones(6)  # we don't scale it for now
+        self.commands_scale = torch.ones(2)  # we don't scale it for now
 
         joint_names = [
             "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
@@ -97,7 +97,7 @@ class LCMAgent():
 
         print(f"p_gains: {self.p_gains}")
 
-        assert self.num_commands == 6, "Trajectory agent only supports 6 commands for now"
+        assert self.num_commands == 2, "Trajectory agent only supports 6 commands for now"
         self.commands = np.zeros((1, self.num_commands))
         self.actions = torch.zeros(12)
         self.last_actions = torch.zeros(12)
