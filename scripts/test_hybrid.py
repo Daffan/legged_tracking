@@ -15,7 +15,7 @@ from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
 from tqdm import tqdm
 
-LOAD_PATH = "wandb/run-20230903_221111-2tbiy4ay/files"
+LOAD_PATH = "wandb/run-20230905_135751-i5sfzbey/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -105,12 +105,13 @@ def load_env(logdir, headless=False):
     Cfg.commands.base_y = 0.0
     Cfg.commands.sampling_based_planning = True
     Cfg.commands.plan_interval = 10
-    Cfg.commands.switch_dist = 0.1
+    Cfg.commands.switch_dist = 0.25
 
     Cfg.curriculum_thresholds.cl_fix_target = False
-    Cfg.env.rotate_camera = True
+    Cfg.env.rotate_camera = False
     Cfg.env.camera_zero = False
-    Cfg.env.command_xy_only = False
+    Cfg.env.command_xy_only = True
+    Cfg.env.viewer_look_at_robot = True
 
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
 

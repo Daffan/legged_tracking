@@ -136,6 +136,17 @@ class LeggedRobot(BaseTask):
         if self.viewer and self.enable_viewer_sync and self.debug_viz:
             self._draw_debug_vis()
 
+        if self.cfg.env.viewer_look_at_robot:
+            # set the viewer always at the back of the robot in the first environment
+            pos_target = torch.tensor([
+                [-0.295-0.1, 0, 0.35],
+                [0, 0, 0.25]
+            ], device=self.device)
+            # Right now, the camera does not rotate with the robot
+            # pos_target = quat_apply_yaw(self.base_quat[[0]*2], pos_target)
+            pos_target[:, :2] += self.root_states[0, :2]
+            self.set_camera(pos_target[0], pos_target[1])
+
         self._render_headless()
 
     def update_curriculum(self):

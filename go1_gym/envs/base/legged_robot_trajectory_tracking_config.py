@@ -67,6 +67,7 @@ class Cfg(PrefixProto, cli=False):
         rotate_camera = True
         camera_zero = False
         command_xy_only = False
+        viewer_look_at_robot = False
 
     class terrain(PrefixProto, cli=False):
         mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
