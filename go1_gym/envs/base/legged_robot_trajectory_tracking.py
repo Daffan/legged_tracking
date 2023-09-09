@@ -719,7 +719,6 @@ class LeggedRobot(BaseTask):
 
         env_ids = torch.arange(self.num_envs).to(self.device)
         self._plan_target_pose(env_ids)
-        self.relative_linear, self.relative_rotation = self._compute_relative_target_pose(self.target_poses)
         self._set_the_target_pose_visual(torch.arange(self.num_envs, device=self.device), self.local_target_poses)
         if self.cfg.env.command_xy_only:
             self.commands = self.local_relative_linear[:, :2]
@@ -765,10 +764,10 @@ class LeggedRobot(BaseTask):
         # if not self.cfg.commands.sampling_based_planning:
         # this is in world frame
         self.target_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids], :]
+        self.relative_linear, self.relative_rotation = self._compute_relative_target_pose(self.target_poses)
         if self.cfg.commands.sampling_based_planning:
             # sampling-based planning
             self.plan_length_buf += 1
-            self.plan_reach_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
             self.plan_switch_buf = self.plan_length_buf > self.cfg.commands.plan_interval
             plan_switch_id = torch.logical_or(self.plan_reach_buf, self.plan_switch_buf).nonzero(as_tuple=False).flatten()
             if len(plan_switch_id) > 0:
@@ -776,43 +775,49 @@ class LeggedRobot(BaseTask):
                 self.plan_length_buf[plan_switch_id] = 0
                 goal_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids]]
                 for env_id in plan_switch_id:
-                    candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
-                    goal_pose = goal_poses[env_id]
-                    goal_pose[:2] -= self.base_pos[env_id, :2].clone()
-                    # sort by distance to goal pose
-                    metrics = torch.linalg.norm(candidate_target_poses_env[:, :2] - goal_pose[:2], dim=1)
-                    metrics += torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 10.  # penality for rotation
-                    metrics += torch.abs(candidate_target_poses_env[:, 3] - goal_pose[3]) * 100.  # penality for z from base
-                    idxs = torch.argsort(
-                        torch.linalg.norm(candidate_target_poses_env[:, :2] - goal_pose[:2], dim=1) + \
-                        torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 0.1  # penality for rotation
-                    , dim=-1)
-                    candidate_target_poses_env = candidate_target_poses_env[idxs, :]
-                    candidate_target_poses_linear = candidate_target_poses_env[:, :3]
-                    candidate_target_poses_quat = quat_from_euler_xyz(candidate_target_poses_env[:, 3], candidate_target_poses_env[:, 4], candidate_target_poses_env[:, 5])
-                    height_points = self.height_points[env_id, None, ...].repeat(2, 1, 1, 1)  # (2, 21, 11, 3)
-                    height_points[..., 2] = self.measured_heights[env_id]
-                    height_points_cand = height_points.view(-1, 1, 3).repeat(1, len(candidate_target_poses_env), 1)
-                    height_points_cand -= candidate_target_poses_linear[None, :, :]
-                    height_points_cand = quat_apply_yaw_inverse(candidate_target_poses_quat.repeat(height_points_cand.shape[0], 1), height_points_cand.view(-1, 3)).view(*height_points_cand.shape)
-                    height_points_cand = torch.norm(height_points_cand / self.robot_size[None, None, :], dim=-1) > 1.0
-                    cands_idx = torch.all(height_points_cand, dim=0)
-                    if torch.any(cands_idx):
-                        target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
+                    if torch.norm(self.relative_linear[env_id, :2]) < 1.0:
+                        # if the robot is close to the goal, directly use the goal as the target pose
+                        target_poses.append(self.target_poses[env_id])
+                        continue
                     else:
-                        print("env_%d has no valid local goal" %env_id)
-                        target_pose_env = candidate_target_poses_env[0, :]
-                    # bring the target pose to world frame 
-                    # target_pose_env[:2] += self.base_pos[env_id, :2]
-                    base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat[env_id][None, :])[0]
-                    target_pose_env[:2] = quat_apply_yaw(self.base_quat[[env_id]], target_pose_env[None, :3])[0, :2] + self.base_pos[env_id, :2]
-                    target_pose_env[-1] = wrap_to_pi(target_pose_env[-1] + base_rotation[-1])
-                    target_poses.append(target_pose_env)
+                        candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
+                        goal_pose = goal_poses[env_id]
+                        goal_pose[:2] -= self.base_pos[env_id, :2].clone()
+                        # sort by distance to goal pose
+                        metrics = torch.linalg.norm(candidate_target_poses_env[:, :2] - goal_pose[:2], dim=1)
+                        metrics += torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 10.  # penality for rotation
+                        metrics += torch.abs(candidate_target_poses_env[:, 3] - goal_pose[3]) * 100.  # penality for z from base
+                        idxs = torch.argsort(
+                            torch.linalg.norm(candidate_target_poses_env[:, :2] - goal_pose[:2], dim=1) + \
+                            torch.linalg.norm(candidate_target_poses_env[:, 3:], dim=1) * 0.1  # penality for rotation
+                        , dim=-1)
+                        candidate_target_poses_env = candidate_target_poses_env[idxs, :]
+                        candidate_target_poses_linear = candidate_target_poses_env[:, :3]
+                        candidate_target_poses_quat = quat_from_euler_xyz(candidate_target_poses_env[:, 3], candidate_target_poses_env[:, 4], candidate_target_poses_env[:, 5])
+                        height_points = self.height_points[env_id, None, ...].repeat(2, 1, 1, 1)  # (2, 21, 11, 3)
+                        height_points[..., 2] = self.measured_heights[env_id]
+                        height_points_cand = height_points.view(-1, 1, 3).repeat(1, len(candidate_target_poses_env), 1)
+                        height_points_cand -= candidate_target_poses_linear[None, :, :]
+                        height_points_cand = quat_apply_yaw_inverse(candidate_target_poses_quat.repeat(height_points_cand.shape[0], 1), height_points_cand.view(-1, 3)).view(*height_points_cand.shape)
+                        height_points_cand = torch.norm(height_points_cand / self.robot_size[None, None, :], dim=-1) > 1.0
+                        cands_idx = torch.all(height_points_cand, dim=0)
+                        if torch.any(cands_idx):
+                            target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
+                        else:
+                            print("env_%d has no valid local goal" %env_id)
+                            target_pose_env = candidate_target_poses_env[0, :]
+                        # bring the target pose to world frame 
+                        # target_pose_env[:2] += self.base_pos[env_id, :2]
+                        base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat[env_id][None, :])[0]
+                        target_pose_env[:2] = quat_apply_yaw(self.base_quat[[env_id]], target_pose_env[None, :3])[0, :2] + self.base_pos[env_id, :2]
+                        target_pose_env[-1] = wrap_to_pi(target_pose_env[-1] + base_rotation[-1])
+                        target_poses.append(target_pose_env)
                 self.local_target_poses[plan_switch_id, ...] = torch.stack(target_poses, dim=0)
         else:
             self.local_target_poses = self.target_poses
         
         self.local_relative_linear, _ = self._compute_relative_target_pose(self.local_target_poses)
+        self.plan_reach_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
 
 
     def _compute_relative_target_pose(self, target_poses):
@@ -1150,7 +1155,7 @@ class LeggedRobot(BaseTask):
         self.local_relative_linear = torch.zeros_like(self.target_poses[:, :3])
         self.local_target_poses = torch.zeros_like(self.target_poses)
         self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
-
+        self.plan_reach_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
         if self.cfg.env.command_xy_only:
@@ -1549,11 +1554,11 @@ class LeggedRobot(BaseTask):
                 self.height_frames.append(self.height_frame)
 
     def start_recording(self):
-        self.complete_video_frames = None
+        self.complete_video_frames = []
         self.record_now = True
 
     def start_recording_eval(self):
-        self.complete_video_frames_eval = None
+        self.complete_video_frames_eval = []
         self.record_eval_now = True
 
     def pause_recording(self):

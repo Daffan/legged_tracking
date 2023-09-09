@@ -74,7 +74,7 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_lag_timesteps = True
     Cfg.control.control_type = "actuator_net"
 
-    if True:
+    if False:
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain

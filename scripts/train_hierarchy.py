@@ -68,9 +68,11 @@ def train_go1(headless=True):
 
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
-    Cfg.reward_scales.reaching_local_goal = 20
+    Cfg.reward_scales.reaching_local_goal = 5
     Cfg.reward_scales.reach_goal = 100
     Cfg.reward_scales.reaching_z = -5.0
+    Cfg.reward_scales.exploration = 1.0
+    Cfg.rewards.exploration_steps = 100000000
 
     Cfg.reward_scales.dof_acc = -2.5e-7 * 2
     Cfg.reward_scales.torques = -1e-5 * 2
@@ -106,7 +108,7 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 10
     else:
-        Cfg.commands.traj_function = "fixed_target"
+        Cfg.commands.traj_function = "valid_goal"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 3.5
