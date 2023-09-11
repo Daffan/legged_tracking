@@ -355,7 +355,7 @@ class LeggedRobot(BaseTask):
             measured_heights_front = self.measured_heights[:, :, x_start:, :]
             if self.cfg.env.camera_zero:
                 measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
-                measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.3)
+                measured_heights_front = torch.clip(measured_heights_front, min=-0.4, max=0.2)
             else:
                 measured_heights_front = torch.clip(measured_heights_front, min=0, max=self.cfg.terrain.ceiling_height)
 

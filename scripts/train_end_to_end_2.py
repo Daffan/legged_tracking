@@ -80,7 +80,7 @@ def train_go1(args):
     Cfg.reward_scales.task = 0 # args.r_task
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.reward_scales.stalling = args.r_stalling
-    Cfg.reward_scales.reach_goal = 200
+    Cfg.reward_scales.reach_goal = 400
     # Cfg.reward_scales.reaching_roll = -0.0
     # Cfg.reward_scales.reaching_pitch = -0.0
     Cfg.reward_scales.reaching_z = -5.0
@@ -105,13 +105,15 @@ def train_go1(args):
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
+        Cfg.terrain.pyramid_length_min=0.15
+        Cfg.terrain.pyramid_length_max=0.35
 
         Cfg.commands.traj_function = "valid_goal"  # "random_goal", "fixed_target", "valid_goal"
 
@@ -126,7 +128,7 @@ def train_go1(args):
     Cfg.curriculum_thresholds.cl_fix_target = True
     Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
     Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
-    Cfg.curriculum_thresholds.cl_switch_delta = 0.2
+    Cfg.curriculum_thresholds.cl_switch_delta = 0.1
     Cfg.curriculum_thresholds.cl_switch_threshold = 0.6
 
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
@@ -140,7 +142,7 @@ def train_go1(args):
     print(1000 * 4000 / (time.time() - start))
     import ipdb; ipdb.set_trace() """
 
-    RunnerArgs.save_video_interval = 200000000
+    RunnerArgs.save_video_interval = 500
     # RunnerArgs.resume = "wandb/run-20230904_150613-pha8btwv/files/checkpoints/ac_weights.pt"
 
     # log the experiment parameters
