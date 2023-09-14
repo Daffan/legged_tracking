@@ -44,8 +44,9 @@ def load_env(logdir, headless=False):
             if hasattr(Cfg, key):
                 for key2, value2 in cfg[key].items():
                     setattr(getattr(Cfg, key), key2, value2)
+    import ipdb; ipdb.set_trace()
 
-    # turn off DR for evaluation script
+    """ # turn off DR for evaluation script
     Cfg.domain_rand.push_robots = False
     Cfg.domain_rand.randomize_friction = False
     Cfg.domain_rand.randomize_gravity = False
@@ -58,59 +59,43 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_Kd_factor = False
     Cfg.domain_rand.randomize_Kp_factor = False
     Cfg.domain_rand.randomize_joint_friction = False
-    Cfg.domain_rand.randomize_com_displacement = False
+    Cfg.domain_rand.randomize_com_displacement = False """
 
     Cfg.env.num_recording_envs = 1
-    Cfg.env.num_envs = 1
+    Cfg.env.num_envs = args.num_env * args.n_repeat
     Cfg.env.look_from_back = True
-    Cfg.terrain.num_rows = 1
-    Cfg.terrain.num_cols = 1
-    Cfg.terrain.border_size = 0
-    Cfg.terrain.center_robots = True
-    Cfg.terrain.center_span = 1
-    Cfg.terrain.teleport_robots = True
 
-    Cfg.domain_rand.lag_timesteps = 6
-    Cfg.domain_rand.randomize_lag_timesteps = True
-    Cfg.control.control_type = "actuator_net"
+    # Cfg.domain_rand.lag_timesteps = 6
+    # Cfg.domain_rand.randomize_lag_timesteps = True
+    # Cfg.control.control_type = "P"
 
     if False:
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain
-        Cfg.terrain.num_cols = 1
-        Cfg.terrain.num_rows = 1
+        Cfg.terrain.num_cols = int(args.num_env ** 0.5)
+        Cfg.terrain.num_rows = int(args.num_env ** 0.5)
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
-        Cfg.terrain.ceiling_height = 0.5
 
-    """ Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.base_x = 1.5
-    Cfg.commands.base_y = 0.0
-    Cfg.curriculum_thresholds.cl_fix_target = False
-    Cfg.env.rotate_camera = True
-    Cfg.terrain.measure_front_half = True
-    Cfg.env.camera_zero = False """
+    if args.hybrid:
+        Cfg.commands.sampling_based_planning = True
+        Cfg.commands.plan_interval = 100
+        Cfg.commands.switch_dist = 0.2
 
     Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.traj_length = 1
-    Cfg.commands.num_interpolation = 1
     Cfg.commands.base_x = 3.5
     Cfg.commands.base_y = 0.0
-    Cfg.commands.sampling_based_planning = True
-    Cfg.commands.plan_interval = 10
-    Cfg.commands.switch_dist = 0.1
-
     Cfg.curriculum_thresholds.cl_fix_target = False
-    Cfg.env.rotate_camera = True
-    Cfg.env.camera_zero = False
-    Cfg.env.command_xy_only = False
+    # Cfg.env.rotate_camera = False
+    # Cfg.terrain.measure_front_half = True
+    # Cfg.env.camera_zero = False
 
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
 
@@ -126,7 +111,7 @@ def load_env(logdir, headless=False):
     return env, policy
 
 
-def play_go1(headless=True):
+def play_go1(logdir, headless=True):
     # from ml_logger import logger
 
     from pathlib import Path
@@ -134,56 +119,58 @@ def play_go1(headless=True):
     import glob
     import os
 
-    logdir = LOAD_PATH
-
     env, policy = load_env(logdir, headless=headless)
     env.start_recording()
 
-    num_eval_steps = 2000
+    num_eval_steps = 1005
 
     measured_x_vels = np.zeros(num_eval_steps)
     joint_positions = np.zeros((num_eval_steps, 12))
 
     obs = env.reset()
+    env.episode_length_buf[:] = 0 # torch.zeros_like(env.episode_length_buf)
     # import ipdb; ipdb.set_trace()
+    reached = [None] * args.num_env * args.n_repeat
 
-    for i in tqdm(range(num_eval_steps)):
+    for i in range(num_eval_steps):
         with torch.no_grad():
             actions = policy(obs)
-            # import ipdb; ipdb.set_trace()
-        print(actions)
         obs, rew, done, info = env.step(actions)
+        step_reached = env.episode_sums["reach_goal"]
+        for j, (d, r) in enumerate(zip(done, rew)):
+            if d and reached[j] is None:
+                reached[j] = (r > 2.0).item()
+
+                if j == 0:
+                    frames = env.get_complete_frames()
+                    fps = 25
+                    if args.hybrid:
+                        path = os.path.join(logdir, "hybrid.mp4")
+                    else:
+                        path = os.path.join(logdir, "e2e.mp4")
+                    out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frames[0].shape[1], frames[0].shape[0]), True)
+                    for frame in frames:
+                        out.write(frame[:, :, :3])
+                    out.release()
+        ei = env.episode_length_buf[0].item()
+        print(f"Step: {i}; env step: {ei}", end='\r')
 
         measured_x_vels[i] = env.base_lin_vel[0, 0]
         joint_positions[i] = env.dof_pos[0, :].cpu()
 
-    frames = env.get_complete_frames()
-
-    fps = 25
-    out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frames[0].shape[1], frames[0].shape[0]), True)
-    for frame in frames:
-        out.write(frame[:, :, :3])
-    out.release()
-    """ 
-    # plot target and measured forward velocity
-    from matplotlib import pyplot as plt
-    fig, axs = plt.subplots(2, 1, figsize=(12, 5))
-    axs[0].plot(np.linspace(0, num_eval_steps * env.dt, num_eval_steps), measured_x_vels, color='black', linestyle="-", label="Measured")
-    # axs[0].plot(np.linspace(0, num_eval_steps * env.dt, num_eval_steps), target_x_vels, color='black', linestyle="--", label="Desired")
-    axs[0].legend()
-    axs[0].set_title("Forward Linear Velocity")
-    axs[0].set_xlabel("Time (s)")
-    axs[0].set_ylabel("Velocity (m/s)")
-
-    axs[1].plot(np.linspace(0, num_eval_steps * env.dt, num_eval_steps), joint_positions, linestyle="-", label="Measured")
-    axs[1].set_title("Joint Positions")
-    axs[1].set_xlabel("Time (s)")
-    axs[1].set_ylabel("Joint Position (rad)")
-
-    plt.tight_layout()
-    plt.show() """
+    print("Reached: ", np.sum(reached))
 
 
 if __name__ == '__main__':
     # to see the environment rendering, set headless=False
-    play_go1(headless=False)
+
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--logdir", type=str, default="")
+    parser.add_argument("--num_env", type=int, default=100)
+    parser.add_argument("--n_repeat", type=int, default=10)
+    parser.add_argument("--hybrid", action="store_true")
+    args = parser.parse_args()
+
+    play_go1(args.logdir, headless=False)

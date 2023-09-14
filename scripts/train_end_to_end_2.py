@@ -57,6 +57,7 @@ def train_go1(args):
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = False
+    Cfg.env.camera_zero = False
     Cfg.terrain.measure_front_half = True
 
     # asset
@@ -67,7 +68,7 @@ def train_go1(args):
     # rewards
     Cfg.rewards.T_reach = 200
     Cfg.rewards.small_vel_threshold = 0.05
-    Cfg.rewards.large_dist_threshold = 0.5
+    Cfg.rewards.large_dist_threshold = 0.25
     Cfg.rewards.exploration_steps = args.exploration_steps
     Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.use_terminal_body_height = False
@@ -104,10 +105,10 @@ def train_go1(args):
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 1.6
+        Cfg.terrain.terrain_width = 3.2
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=3
+        Cfg.terrain.pyramid_num_x=6
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
@@ -140,6 +141,7 @@ def train_go1(args):
     import ipdb; ipdb.set_trace() """
 
     RunnerArgs.save_video_interval = 200000000
+    RunnerArgs.resume = args.resume
 
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
@@ -167,6 +169,7 @@ if __name__ == '__main__':
     parser.add_argument("--r_explore", type=float, default=1)
     parser.add_argument("--r_stalling", type=float, default=1)
     parser.add_argument("--exploration_steps", type=int, default=2000)
+    parser.add_argument("--resume", type=str, default=None)
     args = parser.parse_args()
 
     stem = Path(__file__).stem

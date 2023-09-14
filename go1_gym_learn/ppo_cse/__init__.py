@@ -90,7 +90,8 @@ class Runner:
             #loader = ML_Logger(root="http://escher.csail.mit.edu:8080",
             #                   prefix=RunnerArgs.resume_path)
             # TODO: fix this later, not sure how to load from the WandB server
-            weights = loader.load_torch("checkpoints/ac_weights_last.pt")
+            # weights = loader.load_torch("checkpoints/ac_weights_last.pt")
+            weights = torch.load(runner_args.resume)
             actor_critic.load_state_dict(state_dict=weights)
 
             if hasattr(self.env, "curricula") and runner_args.resume_curriculum:
@@ -170,7 +171,6 @@ class Runner:
                         # with logger.Prefix(metrics="train/episode"):
                         #     logger.store_metrics(**infos['train/episode'])
                         info = infos['train/episode']
-                        # import ipdb; ipdb.set_trace()
                         metrics = {k: np.mean(v) for k, v in info.items()}
                         metrics["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - very_start)
                         wandb.log({"train": metrics})

@@ -91,13 +91,15 @@ def train_go1(headless=True):
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
+        Cfg.terrain.pyramid_height_min=0.15
+        Cfg.terrain.pyramid_height_max=0.35
 
     # goal
     Cfg.commands.base_z = 0.29
@@ -109,7 +111,7 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 10
     else:
-        Cfg.commands.traj_function = "valid_goal"
+        Cfg.commands.traj_function = "fixed_target"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 3.5
@@ -118,11 +120,12 @@ def train_go1(headless=True):
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
     Cfg.commands.x_mean = 3.5
+    Cfg.commands.base_x = 3.5
     Cfg.commands.y_mean = 0.0
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
-    Cfg.commands.switch_dist = 0.25
-    Cfg.curriculum_thresholds.cl_fix_target = True
+    Cfg.commands.switch_dist = 0.20
+    Cfg.curriculum_thresholds.cl_fix_target = False
     Cfg.curriculum_thresholds.cl_start_target_dist = 1.2
     Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
     Cfg.curriculum_thresholds.cl_switch_delta = 0.2
@@ -163,7 +166,7 @@ if __name__ == '__main__':
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--name", type=str, default="hybrid")
     parser.add_argument("--resume", type=str, default='')
-    parser.add_argument("--r_explore", type=float, default=1.0)
+    parser.add_argument("--r_explore", type=float, default=0.0)
     args = parser.parse_args()
 
     stem = Path(__file__).stem
