@@ -221,12 +221,13 @@ class LeggedRobot(BaseTask):
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
         self.reset_buf[env_ids] = 1
-        self.local_relative_linear[env_ids] = 0
+        self.local_relative_linear[env_ids] = 0.
+        self.local_relative_rotation[env_ids] = 0.
+        self.plan_buf[env_ids] = 1
         # fill extras
         train_env_ids = env_ids[env_ids < self.num_train_envs]
         if len(train_env_ids) > 0:
             # self.extras["train/episode"] = {}
-            # import ipdb; ipdb.set_trace()
             for key in self.episode_sums.keys():
                 self.extras["train/episode"]['rew_' + key].extend(
                     self.episode_sums[key][train_env_ids].detach().cpu().numpy())
@@ -235,6 +236,11 @@ class LeggedRobot(BaseTask):
                 episode_length_buf[train_env_ids].detach().cpu().numpy())
             self.extras["train/episode"]['reached'].extend(
                 self.reached_buf[train_env_ids].detach().cpu().numpy())
+            
+            self.reached_env_buf[train_env_ids] = self.reached_buf[train_env_ids]  # this tracks the last reached state
+            self.collision_env_buf[train_env_ids] = self.collision_count[train_env_ids] * self.reached_buf[train_env_ids]  # this tracks the last reached state
+            # print(self.episode_length_buf[0].item(), torch.mean(self.reached_env_buf.float()).item())
+            self.collision_count[train_env_ids] = 0
 
             # log curriculum
             if self.cfg.curriculum_thresholds.cl_fix_target:
@@ -284,7 +290,7 @@ class LeggedRobot(BaseTask):
     def compute_reward(self):
         """ Compute rewards
             Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
-            adds each terms to the episode sums and to the total reward
+            adds each terms to the episode sumss and to the total reward
         """
         self.rew_buf[:] = 0.
         self.rew_buf_pos[:] = 0.
@@ -355,7 +361,7 @@ class LeggedRobot(BaseTask):
             measured_heights_front = self.measured_heights[:, :, x_start:, :]
             if self.cfg.env.camera_zero:
                 measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
-                measured_heights_front = torch.clip(measured_heights_front, min=-0.4, max=0.2)
+                measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.2)
             else:
                 measured_heights_front = torch.clip(measured_heights_front, min=0, max=self.cfg.terrain.ceiling_height)
 
@@ -737,7 +743,7 @@ class LeggedRobot(BaseTask):
             self.commands = torch.cat([
                 self.local_relative_linear[:, :2],  # relative x, y
                 self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
-                self.relative_rotation[:, 2:]  # relative yaw
+                self.local_relative_rotation[:, 2:]  # relative yaw
             ], axis=-1)
 
         # push robots
@@ -759,8 +765,7 @@ class LeggedRobot(BaseTask):
 
         # This setting switches the robot every fixed timestep intervals
         if self.cfg.commands.switch_upon_reach:
-            switched_buf = torch.linalg.norm(self.relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
-            self.switched_buf = torch.logical_and(switched_buf, self.relative_rotation[:, 2].abs() < (torch.pi/3.0))
+            self.switched_buf = torch.linalg.norm(self.relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
         else:
             self.switched_buf = (self.episode_length_buf % self.cfg.commands.switch_interval == 0)
         env_ids = self.switched_buf.nonzero(as_tuple=False).flatten()
@@ -768,7 +773,11 @@ class LeggedRobot(BaseTask):
         # cap to traj_length
         self.curr_pose_index[env_ids] = torch.clip(self.curr_pose_index[env_ids], max=self.cfg.commands.traj_length-1)
         self.reached_buf = torch.logical_and(self.switched_buf, self.curr_pose_index==self.cfg.commands.traj_length-1)
+        self.plan_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
+        env_ids = self.plan_buf.nonzero(as_tuple=False).flatten()
         # self._resample_trajectory(env_ids)
+
+        self.collision_count += torch.sum((torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1).long(), dim=-1)
 
     def _plan_target_pose(self, env_ids):
         # No planning, directly use the goal as the target pose
@@ -778,18 +787,21 @@ class LeggedRobot(BaseTask):
         self.relative_linear, self.relative_rotation = self._compute_relative_target_pose(self.target_poses)
         if self.cfg.commands.sampling_based_planning:
             # sampling-based planning
+            close_to_goal = torch.norm(self.relative_linear[:, :2], dim=1) < 1.0
             self.plan_length_buf += 1
-            self.plan_switch_buf = self.plan_length_buf > self.cfg.commands.plan_interval
-            plan_switch_id = torch.logical_or(self.plan_reach_buf, self.plan_switch_buf).nonzero(as_tuple=False).flatten()
-            if len(plan_switch_id) > 0:
+            replan = self.plan_length_buf > self.cfg.commands.plan_interval
+            plan_buf = torch.logical_or(self.plan_buf, replan)
+            plan_env_ids = plan_buf.nonzero(as_tuple=False).flatten()
+            # plan_buf = torch.logical_and(self.plan_buf, ~close_to_goal)
+            
+            if len(plan_env_ids) > 0:
                 target_poses = []
                 self.plan_length_buf[plan_switch_id] = 0
                 goal_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids]]
-                for env_id in plan_switch_id:
-                    if torch.norm(self.relative_linear[env_id, :2]) < 1.0:
-                        # if the robot is close to the goal, directly use the goal as the target pose
+                self.plan_length_buf[plan_env_ids] = 0
+                for env_id in plan_env_ids:
+                    if close_to_goal[env_id]:
                         target_poses.append(self.target_poses[env_id])
-                        continue
                     else:
                         candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
                         goal_pose = goal_poses[env_id]
@@ -814,23 +826,27 @@ class LeggedRobot(BaseTask):
                         cands_idx = torch.all(height_points_cand, dim=0)
                         if torch.any(cands_idx):
                             target_pose_env = candidate_target_poses_env[cands_idx, :][0, :]
+                            # bring the target pose to world frame 
+                            # target_pose_env[:2] += self.base_pos[env_id, :2]
+                            base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat[env_id][None, :])[0]
+                            target_pose_env[:2] = quat_apply_yaw(self.base_quat[[env_id]], target_pose_env[None, :3])[0, :2] + self.base_pos[env_id, :2]
+                            target_pose_env[3:] = wrap_to_pi(target_pose_env[3:] + base_rotation)
+                            target_poses.append(target_pose_env)
                         else:
-                            print("env_%d has no valid local goal" %env_id)
-                            target_pose_env = candidate_target_poses_env[0, :]
-                        # bring the target pose to world frame 
-                        # target_pose_env[:2] += self.base_pos[env_id, :2]
-                        base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat[env_id][None, :])[0]
-                        target_pose_env[:2] = quat_apply_yaw(self.base_quat[[env_id]], target_pose_env[None, :3])[0, :2] + self.base_pos[env_id, :2]
-                        target_pose_env[-1] = wrap_to_pi(target_pose_env[-1] + base_rotation[-1])
-                        target_poses.append(target_pose_env)
-                self.local_target_poses[plan_switch_id, ...] = torch.stack(target_poses, dim=0)
+                            print("env_%d has no valid local goal, using the global goal" %env_id)
+                            target_poses.append(self.target_poses[env_id]) # candidate_target_poses_env[0, :]
+                        
+                target_poses = torch.stack(target_poses, dim=0)
+                self.local_target_poses[plan_env_ids] = target_poses
+            # update relative linear and rotation at every timestep
+            self.local_relative_linear, self.local_relative_rotation = \
+                self._compute_relative_target_pose(self.local_target_poses)
+            # import ipdb; ipdb.set_trace()
         else:
-            self.local_target_poses = self.target_poses
+            # self.local_target_poses = self.target_poses
+            self.local_relative_linear, self.local_relative_rotation = \
+                self._compute_relative_target_pose(self.target_poses)
         
-        self.local_relative_linear, _ = self._compute_relative_target_pose(self.local_target_poses)
-        self.plan_reach_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
-
-
     def _compute_relative_target_pose(self, target_poses):
         """ Computes the relative pose of the target with respect to the body
         Args:
@@ -1112,7 +1128,6 @@ class LeggedRobot(BaseTask):
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         # initialize some data used later on
         self.common_step_counter = 0
-        self.last_plan_step = 0
         self.extras = {
             "train/episode": defaultdict(lambda: deque([], 4000)),
             "eval/episode": defaultdict(lambda: deque([], 4000)),
@@ -1123,6 +1138,7 @@ class LeggedRobot(BaseTask):
             self.cfg.commands.x_mean = self.current_target_dist
         self.robot_size = torch.tensor([0.3762, 0.0935, 0.114]).to(self.device).float()
         self.reached_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
         # if self.cfg.env.observe_heights:
         self.height_points = self._init_height_points()
@@ -1155,6 +1171,10 @@ class LeggedRobot(BaseTask):
 
         self.desired_contact_states = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device,
                                                   requires_grad=False, )
+        
+        self.reached_env_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.collision_env_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
+        self.collision_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
 
         # replace commands with trajectory waypoints
         self.trajectories = torch.zeros(
@@ -1164,6 +1184,7 @@ class LeggedRobot(BaseTask):
         self.target_poses = torch.zeros_like(self.trajectories[:, 0, :])  # (num_envs, poses dof=6)
         self.curr_pose_index = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.local_relative_linear = torch.zeros_like(self.target_poses[:, :3])
+        self.local_relative_rotation = torch.zeros_like(self.target_poses[:, 3:])
         self.local_target_poses = torch.zeros_like(self.target_poses)
         self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.plan_reach_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
@@ -1742,7 +1763,5 @@ class LeggedRobot(BaseTask):
             heights = torch.min(heights1, heights2)
             heights = torch.min(heights, heights3)
             # heights = heights * self.terrain.vertical_scale
-
-        # import ipdb; ipdb.set_trace()
 
         return heights

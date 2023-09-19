@@ -52,7 +52,7 @@ def train_go1(args):
     # Cfg.env.observe_heights = False
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
-    Cfg.env.num_observation_history = args.num_history
+    Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
@@ -80,7 +80,7 @@ def train_go1(args):
     Cfg.reward_scales.task = 0 # args.r_task
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.reward_scales.stalling = args.r_stalling
-    Cfg.reward_scales.reach_goal = 400
+    Cfg.reward_scales.reach_goal = 200
     # Cfg.reward_scales.reaching_roll = -0.0
     # Cfg.reward_scales.reaching_pitch = -0.0
     Cfg.reward_scales.reaching_z = -5.0
@@ -104,18 +104,26 @@ def train_go1(args):
         Cfg.terrain.valid_tunnel_only = False
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
-        Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
-        Cfg.terrain.pyramid_num_y=4
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
-        Cfg.terrain.pyramid_length_min=0.15
-        Cfg.terrain.pyramid_length_max=0.35
+        Cfg.terrain.pyramid_height_min=0.15
+        Cfg.terrain.pyramid_height_max=0.35
 
-        Cfg.commands.traj_function = "valid_goal"  # "random_goal", "fixed_target", "valid_goal"
+        if args.difficulty_level == 2:
+            Cfg.terrain.terrain_length = 5.0
+            Cfg.terrain.pyramid_num_y=5
+        elif args.difficulty_level == 1:
+            Cfg.terrain.terrain_length = 4.0
+            Cfg.terrain.pyramid_num_y=4
+        elif args.difficulty_level == 0:
+            Cfg.terrain.terrain_length = 3.0
+            Cfg.terrain.pyramid_num_y=3
+
+        Cfg.commands.traj_function = "fixed_target"  # "random_goal", "fixed_target", "valid_goal"
 
     # goal
     Cfg.commands.traj_length = 1
@@ -125,15 +133,14 @@ def train_go1(args):
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
     Cfg.commands.switch_dist = 0.25
-    Cfg.curriculum_thresholds.cl_fix_target = True
-    Cfg.curriculum_thresholds.cl_start_target_dist = 1.2
+    Cfg.curriculum_thresholds.cl_fix_target = False
+    Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
     Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
     Cfg.curriculum_thresholds.cl_switch_delta = 0.2
-    Cfg.curriculum_thresholds.cl_switch_threshold = 0.4
+    Cfg.curriculum_thresholds.cl_switch_threshold = 0.6
 
-    RunnerArgs.save_video_interval = 500
-    RunnerArgs.resume = args.resume
-    env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
+    gpu_id = 0
+    env = TrajectoryTrackingEnv(sim_device=f"cuda:{gpu_id}", headless=args.headless, cfg=Cfg)
     """ 
     import time
     start = time.time()
@@ -154,9 +161,8 @@ def train_go1(args):
         wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
 
     env = HistoryWrapper(env)
-    gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=45, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -174,6 +180,8 @@ if __name__ == '__main__':
     parser.add_argument("--r_stalling", type=float, default=1)
     parser.add_argument("--exploration_steps", type=int, default=2000)
     parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--freeze_model", action="store_true")
+    parser.add_argument("--difficulty_level", type=int, default=0, choices=[0, 1, 2])
     args = parser.parse_args()
 
     stem = Path(__file__).stem

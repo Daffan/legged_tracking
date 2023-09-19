@@ -38,7 +38,7 @@ def train_go1(headless=True):
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
     
-    command_xy_only = True
+    command_xy_only = False
     if command_xy_only:
         Cfg.env.command_xy_only = True
         Cfg.env.num_observations = 261
@@ -61,26 +61,27 @@ def train_go1(headless=True):
 
     # rewards
     Cfg.rewards.T_reach = 200
-    Cfg.rewards.small_vel_threshold = 0.05
+    Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.use_terminal_body_height = False
 
-    Cfg.reward_scales.reaching_linear_vel = 0
-    Cfg.reward_scales.reaching_yaw = 0
-    Cfg.reward_scales.reaching_local_goal = 100
-    Cfg.reward_scales.reach_goal = 100
-    Cfg.reward_scales.reaching_z = -5.0
-    Cfg.reward_scales.exploration = args.r_explore
-    Cfg.rewards.exploration_steps = 100000000
+    Cfg.reward_scales.reaching_xy = 0.6
+    Cfg.reward_scales.reaching_z = -10.0
+    Cfg.reward_scales.reaching_roll = -0.5
+    Cfg.reward_scales.reaching_pitch = -0.5
+    Cfg.reward_scales.reaching_yaw = 0.3
+
+    Cfg.reward_scales.reaching_local_goal = 0
+    Cfg.reward_scales.reach_goal = 0
+    Cfg.reward_scales.exploration = 0
 
     Cfg.reward_scales.dof_acc = -2.5e-7 * 2
     Cfg.reward_scales.torques = -1e-5 * 2
     Cfg.reward_scales.dof_pos_limits = -10.0 * 2
     Cfg.reward_scales.collision = -1.0
     Cfg.reward_scales.action_rate = -0.01
-    Cfg.reward_scales.orientation = 0.0  # -5.0
-    Cfg.reward_scales.reaching_z = 0.0
+    Cfg.reward_scales.orientation = 0.0
     Cfg.reward_scales.base_height = 0.0
 
     # terrain
@@ -98,6 +99,19 @@ def train_go1(headless=True):
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
+        Cfg.terrain.pyramid_height_min=0.15
+        Cfg.terrain.pyramid_height_max=0.35
+
+
+        if args.difficulty_level == 2:
+            Cfg.terrain.terrain_length = 5.0
+            Cfg.terrain.pyramid_num_y=5
+        elif args.difficulty_level == 1:
+            Cfg.terrain.terrain_length = 4.0
+            Cfg.terrain.pyramid_num_y=4
+        elif args.difficulty_level == 0:
+            Cfg.terrain.terrain_length = 3.0
+            Cfg.terrain.pyramid_num_y=3
 
     # goal
     Cfg.commands.base_z = 0.29
@@ -109,7 +123,7 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 10
     else:
-        Cfg.commands.traj_function = "valid_goal"
+        Cfg.commands.traj_function = "fixed_target"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 3.5
@@ -118,15 +132,12 @@ def train_go1(headless=True):
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
     Cfg.commands.x_mean = 3.5
+    Cfg.commands.base_x = 3.5
     Cfg.commands.y_mean = 0.0
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
-    Cfg.commands.switch_dist = 0.25
-    Cfg.curriculum_thresholds.cl_fix_target = True
-    Cfg.curriculum_thresholds.cl_start_target_dist = 1.2
-    Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
-    Cfg.curriculum_thresholds.cl_switch_delta = 0.2
-    Cfg.curriculum_thresholds.cl_switch_threshold = 0.6
+    Cfg.commands.switch_dist = 0.10
+    Cfg.curriculum_thresholds.cl_fix_target = False
     
     RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
@@ -148,7 +159,7 @@ def train_go1(headless=True):
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=45, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -161,9 +172,10 @@ if __name__ == '__main__':
     parser.add_argument("--no_tunnel", action="store_true")
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--name", type=str, default="hybrid")
+    parser.add_argument("--name", type=str, default="gait")
     parser.add_argument("--resume", type=str, default='')
-    parser.add_argument("--r_explore", type=float, default=1.0)
+    parser.add_argument("--freeze_model", action="store_true")
+    parser.add_argument("--difficulty_level", type=int, default=0, choices=[0, 1, 2])
     args = parser.parse_args()
 
     stem = Path(__file__).stem

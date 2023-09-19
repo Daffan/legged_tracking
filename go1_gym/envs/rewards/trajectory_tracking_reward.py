@@ -82,7 +82,8 @@ class TrajectoryTrackingRewards:
             self.env.local_relative_linear[:, :2]
         , dim=1)
         r /= (torch.norm(self.env.local_relative_linear[:, :2], dim=1) + EPSILON)
-        # r /= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) + EPSILON)
+        r /= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) + EPSILON)
+        r *= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) > 0.1).float()  # only reward when moving fast enough
         return r
 
     def _reward_reaching_local_goal(self):

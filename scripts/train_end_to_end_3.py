@@ -52,7 +52,7 @@ def train_go1(args):
     # Cfg.env.observe_heights = False
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
-    Cfg.env.num_observation_history = args.num_history
+    Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
@@ -80,7 +80,7 @@ def train_go1(args):
     Cfg.reward_scales.task = 0 # args.r_task
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.reward_scales.stalling = args.r_stalling
-    Cfg.reward_scales.reach_goal = 400
+    Cfg.reward_scales.reach_goal = 200
     # Cfg.reward_scales.reaching_roll = -0.0
     # Cfg.reward_scales.reaching_pitch = -0.0
     Cfg.reward_scales.reaching_z = -5.0
@@ -105,34 +105,31 @@ def train_go1(args):
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
-        Cfg.terrain.pyramid_length_min=0.15
-        Cfg.terrain.pyramid_length_max=0.35
 
-        Cfg.commands.traj_function = "valid_goal"  # "random_goal", "fixed_target", "valid_goal"
+        Cfg.commands.traj_function = "fixed_target"  # "random_goal", "fixed_target", "valid_goal"
 
     # goal
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.x_mean = 0.2
+    Cfg.commands.base_x = 3.5
+    Cfg.commands.x_mean = 3.5
     Cfg.commands.y_mean = 0.0
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
     Cfg.commands.switch_dist = 0.25
-    Cfg.curriculum_thresholds.cl_fix_target = True
-    Cfg.curriculum_thresholds.cl_start_target_dist = 1.2
+    Cfg.curriculum_thresholds.cl_fix_target = False
+    Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
     Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
     Cfg.curriculum_thresholds.cl_switch_delta = 0.2
-    Cfg.curriculum_thresholds.cl_switch_threshold = 0.4
+    Cfg.curriculum_thresholds.cl_switch_threshold = 0.6
 
-    RunnerArgs.save_video_interval = 500
-    RunnerArgs.resume = args.resume
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
     """ 
     import time
@@ -156,7 +153,7 @@ def train_go1(args):
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=100000, init_at_random_ep_len=True, eval_freq=100)
 
 
 if __name__ == '__main__':
