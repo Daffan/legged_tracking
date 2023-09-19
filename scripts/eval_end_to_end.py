@@ -44,7 +44,6 @@ def load_env(logdir, headless=False):
             if hasattr(Cfg, key):
                 for key2, value2 in cfg[key].items():
                     setattr(getattr(Cfg, key), key2, value2)
-    import ipdb; ipdb.set_trace()
 
     """ # turn off DR for evaluation script
     Cfg.domain_rand.push_robots = False

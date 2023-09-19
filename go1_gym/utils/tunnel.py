@@ -140,6 +140,12 @@ class Terrain:
             )
             # terrain.height_field_raw += int(1.0 / self.cfg.vertical_scale)
         elif terrain_type == "random_pyramid":
+            """ if difficulty < 0.25:
+                pyramid_num_x = 2
+            elif difficulty < 0.625:
+                pyramid_num_x = 3
+            else:
+                pyramid_num_x = 4 """
             random_pyramid(
                 terrain,
                 num_x=self.cfg.pyramid_num_x,

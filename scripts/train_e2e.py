@@ -1,28 +1,27 @@
-import isaacgym
-assert isaacgym
-import torch
-import wandb
-from params_proto import PrefixProto, ParamsProto
+def train_go1(headless=True):
 
-from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
-from go1_gym.envs.go1.go1_config import config_go1
-from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
+    import isaacgym
+    assert isaacgym
+    import torch
+    import wandb
+    from params_proto import PrefixProto, ParamsProto
 
-# from ml_logger import logger
+    from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
+    from go1_gym.envs.go1.go1_config import config_go1
+    from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
+  
+    # from ml_logger import logger
 
-from go1_gym_learn.ppo_cse import Runner
-from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
-from go1_gym_learn.ppo_cse.actor_critic import AC_Args
-from go1_gym_learn.ppo_cse.ppo import PPO_Args
-from go1_gym_learn.ppo_cse import RunnerArgs
+    from go1_gym_learn.ppo_cse import Runner
+    from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
+    from go1_gym_learn.ppo_cse.actor_critic import AC_Args
+    from go1_gym_learn.ppo_cse.ppo import PPO_Args
+    from go1_gym_learn.ppo_cse import RunnerArgs
 
-import random
-import numpy as np
-import torch
-import os
-import pickle
-
-def train_go1(args):
+    import random
+    import numpy as np
+    import torch
+    import os
 
     seed = 11
 
@@ -37,9 +36,9 @@ def train_go1(args):
     # observation space
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
-    Cfg.terrain.measure_front_half = True
     Cfg.env.observe_heights = True
-
+    Cfg.env.num_envs = 4000
+    
     command_xy_only = True
     if command_xy_only:
         Cfg.env.command_xy_only = True
@@ -49,15 +48,11 @@ def train_go1(args):
         Cfg.env.command_xy_only = False
         Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
         Cfg.env.num_scalar_observations = 265  # 507
-    # Cfg.env.observe_heights = False
-    # Cfg.env.num_observations = 45
-    # Cfg.env.num_scalar_observations = 45
     Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = False
-    Cfg.env.camera_zero = False
     Cfg.terrain.measure_front_half = True
 
     # asset
@@ -105,10 +100,10 @@ def train_go1(args):
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 3.2
+        Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=6
+        Cfg.terrain.pyramid_num_x=3
         Cfg.terrain.pyramid_num_y=4
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
@@ -128,11 +123,11 @@ def train_go1(args):
     Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
     Cfg.curriculum_thresholds.cl_switch_delta = 0.2
     Cfg.curriculum_thresholds.cl_switch_threshold = 0.4
-
+    
     RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
-    """ 
+    """ Speed test
     import time
     start = time.time()
     for i in range(100):
@@ -140,21 +135,16 @@ def train_go1(args):
         action = torch.zeros(4000, 12).to(env.device)
         env.step(action)
     print(1000 * 4000 / (time.time() - start))
-    import ipdb; ipdb.set_trace() """
+    import ipdb; ipdb.set_trace() 
+    """
 
-    RunnerArgs.save_video_interval = 200000000
-    RunnerArgs.resume = args.resume
-
-    # log the experiment parameters
-    # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
-    #                   Cfg=vars(Cfg))
     if args.wandb:
         wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
 
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -165,13 +155,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--no_tunnel", action="store_true")
+    parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--name", type=str, default="e2e")
-    parser.add_argument("--r_task", type=float, default=200)
-    parser.add_argument("--r_explore", type=float, default=1)
-    parser.add_argument("--r_stalling", type=float, default=1)
+    parser.add_argument("--name", type=str, default="hybrid")
+    parser.add_argument("--resume", type=str, default='')
+    parser.add_argument("--r_explore", type=float, default=0.0)
+    parser.add_argument("--r_stalling", type=float, default=1.0)
     parser.add_argument("--exploration_steps", type=int, default=2000)
-    parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--freeze_model", action="store_true")
     args = parser.parse_args()
 
     stem = Path(__file__).stem

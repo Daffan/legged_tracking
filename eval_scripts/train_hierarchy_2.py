@@ -37,6 +37,7 @@ def train_go1(headless=True):
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
+    Cfg.env.num_envs = 4000
     
     command_xy_only = True
     if command_xy_only:
@@ -61,11 +62,12 @@ def train_go1(headless=True):
 
     # rewards
     Cfg.rewards.T_reach = 200
-    Cfg.rewards.small_vel_threshold = 0.05
+    Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.only_positive_rewards = False
     Cfg.rewards.use_terminal_body_height = False
 
+    Cfg.reward_scales.stalling = args.r_stalling
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.reaching_local_goal = 100
@@ -95,11 +97,21 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
         Cfg.terrain.pyramid_num_x=3
-        Cfg.terrain.pyramid_num_y=4
+        Cfg.terrain.pyramid_num_y=5
         Cfg.terrain.pyramid_var_x=0.3
         Cfg.terrain.pyramid_var_y=0.3
         Cfg.terrain.pyramid_height_min=0.15
         Cfg.terrain.pyramid_height_max=0.35
+
+        if args.difficulty_level == 2:
+            Cfg.terrain.terrain_length = 5.0
+            Cfg.terrain.pyramid_num_y=5
+        elif args.difficulty_level == 1:
+            Cfg.terrain.terrain_length = 4.0
+            Cfg.terrain.pyramid_num_y=4
+        elif args.difficulty_level == 0:
+            Cfg.terrain.terrain_length = 3.0
+            Cfg.terrain.pyramid_num_y=3
 
     # goal
     Cfg.commands.base_z = 0.29
@@ -151,7 +163,7 @@ def train_go1(headless=True):
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=10000000, init_at_random_ep_len=True, eval_freq=100)
+    runner.learn(num_learning_iterations=45, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -167,6 +179,9 @@ if __name__ == '__main__':
     parser.add_argument("--name", type=str, default="hybrid")
     parser.add_argument("--resume", type=str, default='')
     parser.add_argument("--r_explore", type=float, default=0.0)
+    parser.add_argument("--r_stalling", type=float, default=1.0)
+    parser.add_argument("--freeze_model", action="store_true")
+    parser.add_argument("--difficulty_level", type=int, default=0, choices=[0, 1, 2])
     args = parser.parse_args()
 
     stem = Path(__file__).stem

@@ -225,6 +225,11 @@ class LeggedRobot(BaseTask):
                 episode_length_buf[train_env_ids].detach().cpu().numpy())
             self.extras["train/episode"]['reached'].extend(
                 self.reached_buf[train_env_ids].detach().cpu().numpy())
+            
+            self.reached_env_buf[train_env_ids] = self.reached_buf[train_env_ids]  # this tracks the last reached state
+            self.collision_env_buf[train_env_ids] = self.collision_count[train_env_ids] * self.reached_buf[train_env_ids]  # this tracks the last reached state
+            # print(self.episode_length_buf[0].item(), torch.mean(self.reached_env_buf.float()).item())
+            self.collision_count[train_env_ids] = 0
 
             # log curriculum
             if self.cfg.curriculum_thresholds.cl_fix_target:
@@ -726,7 +731,7 @@ class LeggedRobot(BaseTask):
         else:
             self.commands = torch.cat([
                 self.local_relative_linear[:, :2],  # relative x, y
-                # self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
+                self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
                 self.local_relative_rotation[:, 2:]  # relative yaw
             ], axis=-1)
 
@@ -760,6 +765,8 @@ class LeggedRobot(BaseTask):
         self.plan_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
         env_ids = self.plan_buf.nonzero(as_tuple=False).flatten()
         # self._resample_trajectory(env_ids)
+
+        self.collision_count += torch.sum((torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1).long(), dim=-1)
 
     def _plan_target_pose(self, env_ids):
         # No planning, directly use the goal as the target pose
@@ -1152,6 +1159,10 @@ class LeggedRobot(BaseTask):
 
         self.desired_contact_states = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device,
                                                   requires_grad=False, )
+        
+        self.reached_env_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.collision_env_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
+        self.collision_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
 
         # replace commands with trajectory waypoints
         self.trajectories = torch.zeros(

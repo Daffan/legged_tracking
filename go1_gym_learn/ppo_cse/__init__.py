@@ -117,7 +117,7 @@ class Runner:
 
         self.env.reset()
 
-    def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, curriculum_dump_freq=500, eval_expert=False):
+    def learn(self, num_learning_iterations, init_at_random_ep_len=False, eval_freq=100, curriculum_dump_freq=500, eval_expert=False, update_model=True):
         log_wandb = self.log_wandb
         # initialize writer
         # assert logger.prefix, "you will overwrite the entire instrument server"
@@ -149,6 +149,12 @@ class Runner:
         for it in range(tot_iter):
             start = time.time()
             # Rollout
+            if torch.sum(self.env.reached_env_buf.float()) > 0:
+                success_collision = torch.sum(self.env.collision_env_buf.float() * self.env.reached_env_buf.float()) / torch.sum(self.env.reached_env_buf.float())
+                success_collision = success_collision.item()
+            else:
+                success_collision = "NaN"
+            print(it * self.num_steps_per_env, "success: ", torch.mean(self.env.reached_env_buf.float()).item(), " collision", success_collision)
             with torch.inference_mode():
                 for i in range(self.num_steps_per_env):
                     actions_train = self.alg.act(obs[:num_train_envs], privileged_obs[:num_train_envs],
@@ -165,7 +171,8 @@ class Runner:
 
                     obs, privileged_obs, obs_history, rewards, dones = obs.to(self.device), privileged_obs.to(
                         self.device), obs_history.to(self.device), rewards.to(self.device), dones.to(self.device)
-                    self.alg.process_env_step(rewards[:num_train_envs], dones[:num_train_envs], infos)
+                    if update_model:
+                        self.alg.process_env_step(rewards[:num_train_envs], dones[:num_train_envs], infos)
 
                     if 'train/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="train/episode"):
@@ -209,7 +216,8 @@ class Runner:
 
                 # Learning step
                 start = stop
-                self.alg.compute_returns(obs_history[:num_train_envs], privileged_obs[:num_train_envs])
+                if update_model:
+                    self.alg.compute_returns(obs_history[:num_train_envs], privileged_obs[:num_train_envs])
 
                 if it % curriculum_dump_freq == 0 and log_wandb:
                     if not os.path.exists(os.path.join(wandb.run.dir, "curriculum")):
@@ -228,7 +236,11 @@ class Runner:
                                         open(save_path, "wb"))
                         wandb.save(save_path)
 
-            mean_value_loss, mean_surrogate_loss, mean_adaptation_module_loss, mean_decoder_loss, mean_decoder_loss_student, mean_adaptation_module_test_loss, mean_decoder_test_loss, mean_decoder_test_loss_student = self.alg.update()
+            if update_model:
+                mean_value_loss, mean_surrogate_loss, mean_adaptation_module_loss, mean_decoder_loss, mean_decoder_loss_student, mean_adaptation_module_test_loss, mean_decoder_test_loss, mean_decoder_test_loss_student = self.alg.update()
+            else:
+                mean_value_loss, mean_surrogate_loss, mean_adaptation_module_loss, mean_decoder_loss, mean_decoder_loss_student, mean_adaptation_module_test_loss, mean_decoder_test_loss, mean_decoder_test_loss_student = 0, 0, 0, 0, 0, 0, 0, 0
+
             stop = time.time()
             learn_time = stop - start
 
