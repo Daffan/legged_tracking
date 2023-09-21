@@ -774,9 +774,6 @@ class LeggedRobot(BaseTask):
         self.curr_pose_index[env_ids] = torch.clip(self.curr_pose_index[env_ids], max=self.cfg.commands.traj_length-1)
         self.reached_buf = torch.logical_and(self.switched_buf, self.curr_pose_index==self.cfg.commands.traj_length-1)
         self.plan_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
-        env_ids = self.plan_buf.nonzero(as_tuple=False).flatten()
-        # self._resample_trajectory(env_ids)
-
         self.collision_count += torch.sum((torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1).long(), dim=-1)
 
     def _plan_target_pose(self, env_ids):
@@ -1186,7 +1183,6 @@ class LeggedRobot(BaseTask):
         self.local_relative_rotation = torch.zeros_like(self.target_poses[:, 3:])
         self.local_target_poses = torch.zeros_like(self.target_poses)
         self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
-        self.plan_reach_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
         if self.cfg.env.command_xy_only:

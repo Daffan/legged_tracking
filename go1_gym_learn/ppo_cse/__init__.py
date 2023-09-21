@@ -124,10 +124,6 @@ class Runner:
 
         # logger.start('start', 'epoch', 'episode', 'run', 'step')
 
-        if init_at_random_ep_len:
-            self.env.episode_length_buf = torch.randint_like(self.env.episode_length_buf,
-                                                             high=int(self.env.max_episode_length))
-
         # split train and test envs
         num_train_envs = self.env.num_train_envs
 
@@ -146,6 +142,10 @@ class Runner:
 
         tot_iter = num_learning_iterations
         very_start = time.time()
+
+        if init_at_random_ep_len:
+            self.env.episode_length_buf = torch.randint_like(self.env.episode_length_buf,
+                                                             high=int(self.env.max_episode_length))
         for it in range(tot_iter):
             start = time.time()
             # Rollout

@@ -46,7 +46,7 @@ class TrajectoryTrackingEnv(LeggedRobot):
     def reset(self):
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
         # import ipdb; ipdb.set_trace()
-        # self.episode_length_buf = torch.randint(int(self.max_episode_length), (self.num_envs,), device=self.device, dtype=torch.long)
+        self.episode_length_buf = torch.randint(int(self.max_episode_length), (self.num_envs,), device=self.device, dtype=torch.long)
         self.extras = {
             "train/episode": defaultdict(lambda: deque([], 4000)),
             "eval/episode": defaultdict(lambda: deque([], 4000)),

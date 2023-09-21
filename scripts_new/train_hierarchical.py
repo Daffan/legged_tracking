@@ -71,9 +71,10 @@ def train_go1(headless=True):
     # Cfg.reward_scales.stalling = args.r_stalling
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
-    Cfg.reward_scales.reach_goal = 100
+    Cfg.reward_scales.reach_goal = 0.0
+    Cfg.reward_scales.reaching_local_goal = 100.0
     # Cfg.reward_scales.reaching_z = -5.0
-    Cfg.reward_scales.exploration = args.r_explore
+    Cfg.reward_scales.exploration = 0.0  # args.r_explore
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
     Cfg.reward_scales.dof_acc = -2.5e-7 * 2
@@ -124,25 +125,21 @@ def train_go1(headless=True):
         Cfg.commands.traj_function = "valid_goal"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
-        Cfg.commands.base_x = 3.5
-        Cfg.commands.sampling_based_planning = False
+        Cfg.commands.base_x = 5.0
+        Cfg.commands.sampling_based_planning = True
         Cfg.commands.plan_interval = 100
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.x_mean = 3.5
+    Cfg.commands.x_mean = 5.0
     Cfg.commands.y_mean = 0.0
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
-    Cfg.commands.switch_dist = 0.3
-    if args.start_target_dist > 0:
-        Cfg.curriculum_thresholds.cl_fix_target = True
-        Cfg.curriculum_thresholds.cl_start_target_dist = args.start_target_dist
-        Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
-        Cfg.curriculum_thresholds.cl_switch_delta = 0.2
-        Cfg.curriculum_thresholds.cl_switch_threshold = 0.4
-    else:
-        Cfg.curriculum_thresholds.cl_fix_target = False
-
+    Cfg.commands.switch_dist = 0.1
+    Cfg.curriculum_thresholds.cl_fix_target = True
+    Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
+    Cfg.curriculum_thresholds.cl_goal_target_dist = 5.0
+    Cfg.curriculum_thresholds.cl_switch_delta = 0.2
+    Cfg.curriculum_thresholds.cl_switch_threshold = 0.4
     
     RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
@@ -167,12 +164,11 @@ if __name__ == '__main__':
     parser.add_argument("--no_tunnel", action="store_true")
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--name", type=str, default="e2e")
+    parser.add_argument("--name", type=str, default="hierarchical")
     parser.add_argument("--resume", type=str, default='')
     parser.add_argument("--r_explore", type=float, default=1.0)
     parser.add_argument("--r_stalling", type=float, default=1.0)
     parser.add_argument("--freeze_model", action="store_true")
-    parser.add_argument("--start_target_dist", type=float, default=0.6)
     args = parser.parse_args()
 
     stem = Path(__file__).stem
