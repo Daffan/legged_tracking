@@ -83,8 +83,8 @@ class Terrain:
             difficulty = np.random.uniform(0.0, 1.0)
             valid = False
             while not valid:
-                terrain_top = self.make_terrain(cfg.terrain_type, difficulty, k)
-                terrain_bottom = self.make_terrain(cfg.terrain_type, difficulty, k)
+                terrain_top = self.make_terrain(cfg.terrain_type, difficulty, k, top=True)
+                terrain_bottom = self.make_terrain(cfg.terrain_type, difficulty, k, top=False)
                 # flip the ceiling of the tunnel at the ceiling
                 terrain_top.height_field_raw = self.cfg.ceiling_height / self.vertical_scale - terrain_top.height_field_raw
                 terrain_top.height_field_raw = np.clip(terrain_top.height_field_raw, a_max=None, a_min=0.05 / self.vertical_scale)
@@ -251,7 +251,7 @@ def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0
     mean_z = np.random.uniform(height_min, height_max, size=mean_x.shape)
     means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
 
-    pw, pl = np.random.uniform(low=length_min, high=length_max, size=(2, len(means)))
+    pw, pl = np.random.uniform(low=length_min, high=length_max, size=(2, means.shape[0]))
     wedge_points = np.stack([
         np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
         np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
@@ -269,7 +269,6 @@ def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0
 
         # shape = (pixel_x, pixel_y, x_coord, y_coord)
     points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-
     height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
     terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
     

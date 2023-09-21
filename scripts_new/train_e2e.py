@@ -37,7 +37,7 @@ def train_go1(headless=True):
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
-    Cfg.env.num_envs = 4000
+    Cfg.env.num_envs = 100
     
     command_xy_only = True
     if command_xy_only:
@@ -90,26 +90,26 @@ def train_go1(headless=True):
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain
-        Cfg.terrain.num_cols = 20
-        Cfg.terrain.num_rows = 20
-        Cfg.terrain.terrain_length = 5.0
-        Cfg.terrain.terrain_width = 1.6
+        Cfg.terrain.num_cols = 10
+        Cfg.terrain.num_rows = 10
+        Cfg.terrain.terrain_length = 8.0
+        Cfg.terrain.terrain_width = 3.0
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
 
         Cfg.terrain.top.pyramid_num_x=6
         Cfg.terrain.top.pyramid_num_y=4
-        Cfg.terrain.top.pyramid_var_x=0.5
-        Cfg.terrain.top.pyramid_var_y=0.16
-        Cfg.terrain.top.pyramid_height_max = 0.5
-        Cfg.terrain.top.pyramid_height_min = 0.3
+        Cfg.terrain.top.pyramid_var_x=0.8
+        Cfg.terrain.top.pyramid_var_y=0.6
+        Cfg.terrain.top.pyramid_height_max = 0.4
+        Cfg.terrain.top.pyramid_height_min = 0.2
 
-        Cfg.terrain.bottom.pyramid_num_x=8
-        Cfg.terrain.bottom.pyramid_num_y=6
-        Cfg.terrain.bottom.pyramid_var_x=0.2
-        Cfg.terrain.bottom.pyramid_var_y=0.05
+        Cfg.terrain.bottom.pyramid_num_x=10
+        Cfg.terrain.bottom.pyramid_num_y=8
+        Cfg.terrain.bottom.pyramid_var_x=0.8
+        Cfg.terrain.bottom.pyramid_var_y=0.6
         Cfg.terrain.bottom.pyramid_height_max = 0.3
-        Cfg.terrain.bottom.pyramid_height_min = 0.1
+        Cfg.terrain.bottom.pyramid_height_min = 0.05
 
     # goal
     Cfg.commands.base_z = 0.29
