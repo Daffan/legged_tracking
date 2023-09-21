@@ -154,7 +154,7 @@ class Runner:
                 success_collision = success_collision.item()
             else:
                 success_collision = "NaN"
-            print(it * self.num_steps_per_env, "success: ", torch.mean(self.env.reached_env_buf.float()).item(), " collision", success_collision)
+            # print(it * self.num_steps_per_env, "success: ", torch.mean(self.env.reached_env_buf.float()).item(), " collision", success_collision)
             with torch.inference_mode():
                 for i in range(self.num_steps_per_env):
                     actions_train = self.alg.act(obs[:num_train_envs], privileged_obs[:num_train_envs],
@@ -179,7 +179,7 @@ class Runner:
                         #     logger.store_metrics(**infos['train/episode'])
                         info = infos['train/episode']
                         metrics = {k: np.mean(v) for k, v in info.items()}
-                        metrics["fps"] = (it+1) * self.env.cfg.env.num_envs / (time.time() - very_start)
+                        metrics["fps"] = (it+1) * self.env.cfg.env.num_envs * self.num_steps_per_env / (time.time() - very_start)
                         wandb.log({"train": metrics})
 
                     if 'eval/episode' in infos and log_wandb:

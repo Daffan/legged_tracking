@@ -52,7 +52,7 @@ def train_go1(args):
     # Cfg.env.observe_heights = False
     # Cfg.env.num_observations = 45
     # Cfg.env.num_scalar_observations = 45
-    Cfg.env.num_observation_history = args.num_history
+    Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20

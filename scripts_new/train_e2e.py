@@ -37,7 +37,7 @@ def train_go1(headless=True):
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
-    Cfg.env.num_envs = 1000
+    Cfg.env.num_envs = 4000
     
     command_xy_only = True
     if command_xy_only:
@@ -53,6 +53,7 @@ def train_go1(headless=True):
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = False
+    Cfg.env.camera_zero = True
     Cfg.terrain.measure_front_half = True
 
     # asset
@@ -71,9 +72,9 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.reach_goal = 100
-    Cfg.reward_scales.reaching_z = -5.0
+    # Cfg.reward_scales.reaching_z = -5.0
     Cfg.reward_scales.exploration = args.r_explore
-    Cfg.rewards.exploration_steps = 100000000
+    Cfg.rewards.exploration_steps = 100000000  # always explore
 
     Cfg.reward_scales.dof_acc = -2.5e-7 * 2
     Cfg.reward_scales.torques = -1e-5 * 2
@@ -89,16 +90,26 @@ def train_go1(headless=True):
         Cfg.terrain.mesh_type = 'plane'
     else:
         # By default random pyramid terrain
-        Cfg.terrain.num_cols = 10
-        Cfg.terrain.num_rows = 10
+        Cfg.terrain.num_cols = 20
+        Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 5.0
         Cfg.terrain.terrain_width = 1.6
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
-        Cfg.terrain.pyramid_num_x=3
-        Cfg.terrain.pyramid_num_y=4
-        Cfg.terrain.pyramid_var_x=0.3
-        Cfg.terrain.pyramid_var_y=0.3
+
+        Cfg.terrain.top.pyramid_num_x=6
+        Cfg.terrain.top.pyramid_num_y=4
+        Cfg.terrain.top.pyramid_var_x=0.5
+        Cfg.terrain.top.pyramid_var_y=0.16
+        Cfg.terrain.top.pyramid_height_max = 0.5
+        Cfg.terrain.top.pyramid_height_min = 0.3
+
+        Cfg.terrain.bottom.pyramid_num_x=8
+        Cfg.terrain.bottom.pyramid_num_y=6
+        Cfg.terrain.bottom.pyramid_var_x=0.2
+        Cfg.terrain.bottom.pyramid_var_y=0.05
+        Cfg.terrain.bottom.pyramid_height_max = 0.3
+        Cfg.terrain.bottom.pyramid_height_min = 0.1
 
     # goal
     Cfg.commands.base_z = 0.29
@@ -110,11 +121,11 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 10
     else:
-        Cfg.commands.traj_function = "fixed_target"
+        Cfg.commands.traj_function = "valid_goal"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 3.5
-        Cfg.commands.sampling_based_planning = True
+        Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 100
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
@@ -123,25 +134,15 @@ def train_go1(headless=True):
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
     Cfg.commands.switch_dist = 0.3
-    Cfg.curriculum_thresholds.cl_fix_target = False
+    Cfg.curriculum_thresholds.cl_fix_target = True
     Cfg.curriculum_thresholds.cl_start_target_dist = 0.6
     Cfg.curriculum_thresholds.cl_goal_target_dist = 3.2
     Cfg.curriculum_thresholds.cl_switch_delta = 0.2
     Cfg.curriculum_thresholds.cl_switch_threshold = 0.4
     
-    RunnerArgs.save_video_interval = 10
+    RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
     env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
-    """ Speed test
-    import time
-    start = time.time()
-    for i in range(100):
-        print(i, end='\r')
-        action = torch.zeros(4000, 12).to(env.device)
-        env.step(action)
-    print(1000 * 4000 / (time.time() - start))
-    import ipdb; ipdb.set_trace() 
-    """
 
     if args.wandb:
         wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
@@ -149,7 +150,7 @@ def train_go1(headless=True):
     env = HistoryWrapper(env)
     gpu_id = 0
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=42, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
+    runner.learn(num_learning_iterations=1000000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -162,9 +163,9 @@ if __name__ == '__main__':
     parser.add_argument("--no_tunnel", action="store_true")
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--name", type=str, default="hybrid")
+    parser.add_argument("--name", type=str, default="e2e")
     parser.add_argument("--resume", type=str, default='')
-    parser.add_argument("--r_explore", type=float, default=0.0)
+    parser.add_argument("--r_explore", type=float, default=1.0)
     parser.add_argument("--r_stalling", type=float, default=1.0)
     parser.add_argument("--freeze_model", action="store_true")
     args = parser.parse_args()

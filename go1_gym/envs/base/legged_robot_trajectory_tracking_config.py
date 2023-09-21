@@ -64,9 +64,9 @@ class Cfg(PrefixProto, cli=False):
         priv_observe_dummy_variable = False
 
         terminate_end_of_trajectory = False
-        rotate_camera = True
-        camera_zero = False
-        command_xy_only = False
+        rotate_camera = False
+        camera_zero = True
+        command_xy_only = True
         viewer_look_at_robot = False
 
     class terrain(PrefixProto, cli=False):
@@ -109,14 +109,26 @@ class Cfg(PrefixProto, cli=False):
         terminate_end_of_trajectory = False
 
         # settings for random_pyramid
-        pyramid_num_x=3
-        pyramid_num_y=5
-        pyramid_var_x=0.5
-        pyramid_var_y=0.3
-        pyramid_length_min=0.2
-        pyramid_length_max=0.4
-        pyramid_height_min=0.2
-        pyramid_height_max=0.4
+        class top(PrefixProto, cli=False):
+            pyramid_num_x=3
+            pyramid_num_y=5
+            pyramid_var_x=0.5
+            pyramid_var_y=0.3
+            pyramid_length_min=0.2
+            pyramid_length_max=0.4
+            pyramid_height_min=0.2
+            pyramid_height_max=0.4
+
+        class bottom(PrefixProto, cli=False):
+            pyramid_num_x=3
+            pyramid_num_y=5
+            pyramid_var_x=0.5
+            pyramid_var_y=0.3
+            pyramid_length_min=0.2
+            pyramid_length_max=0.4
+            pyramid_height_min=0.2
+            pyramid_height_max=0.4
+
 
     class commands(PrefixProto, cli=False):
         switch_upon_reach = True  # switch waypoint when current waypoint is reached

@@ -124,7 +124,7 @@ class Terrain:
                 v_top_bottom.append(v); t_top_bottom.append(t)
             self.vertices.append(v_top_bottom); self.triangles.append(t_top_bottom)
 
-    def make_terrain(self, terrain_type, difficulty, k):
+    def make_terrain(self, terrain_type, difficulty, k, top=True):
         terrain = terrain_utils.SubTerrain(   "terrain",
                                 width=int(self.width_per_env_pixels * self.terrain_ratio_y),
                                 length=int(self.length_per_env_pixels * self.terrain_ratio_x),
@@ -140,22 +140,23 @@ class Terrain:
             )
             # terrain.height_field_raw += int(1.0 / self.cfg.vertical_scale)
         elif terrain_type == "random_pyramid":
-            """ if difficulty < 0.25:
-                pyramid_num_x = 2
+            if difficulty < 0.25:
+                d_num = 2
             elif difficulty < 0.625:
-                pyramid_num_x = 3
+                d_num = 1
             else:
-                pyramid_num_x = 4 """
+                d_num = 0
+            cfg = self.cfg.top if top else self.cfg.bottom
             random_pyramid(
                 terrain,
-                num_x=self.cfg.pyramid_num_x,
-                num_y=self.cfg.pyramid_num_y,
-                var_x=self.cfg.pyramid_var_x,
-                var_y=self.cfg.pyramid_var_y,
-                length_min=self.cfg.pyramid_length_min,
-                length_max=self.cfg.pyramid_length_max,
-                height_min=self.cfg.pyramid_height_min,
-                height_max=self.cfg.pyramid_height_max,
+                num_x=cfg.pyramid_num_x-d_num,
+                num_y=cfg.pyramid_num_y-d_num,
+                var_x=cfg.pyramid_var_x,
+                var_y=cfg.pyramid_var_y,
+                length_min=cfg.pyramid_length_min,
+                length_max=cfg.pyramid_length_max,
+                height_min=cfg.pyramid_height_min,
+                height_max=cfg.pyramid_height_max,
             )
         else:
             raise ValueError
@@ -174,17 +175,6 @@ class Terrain:
         end_y = int((j + 0.5 + self.terrain_ratio_y/2.) * self.width_per_env_pixels)
         self.height_field_raw[0, start_x: end_x, start_y:end_y] = terrain_top.height_field_raw.T
         self.height_field_raw[1, start_x: end_x, start_y:end_y] = terrain_bottom.height_field_raw.T
-
-        #env_border_ratio_x = self.cfg.terrain_border_ratio_x
-        #env_border_ratio_y = self.cfg.terrain_border_ratio_y
-        #border_start_x = int((i + 0.5 - env_border_ratio_x/2.) * self.length_per_env_pixels)
-        #border_end_x = int((i + 0.5 + env_border_ratio_x/2.) * self.length_per_env_pixels)
-        #border_start_y = start_y - 1  # int((j + 0.5 - env_border_ratio_y/2.) * self.width_per_env_pixels)
-        #border_end_y = end_y  # int((j + 0.5 + env_border_ratio_y/2.) * self.width_per_env_pixels)
-        #self.height_field_raw[border_start_x, :] = int(0.15 / self.vertical_scale)
-        #self.height_field_raw[border_end_x, :] = int(0.15 / self.vertical_scale)
-        #self.height_field_raw[:, border_start_y] = int(0.15 / self.vertical_scale)
-        #self.height_field_raw[:, border_end_y] = int(0.15 / self.vertical_scale)
         
         self.height_field_env.append([terrain_top.height_field_raw, terrain_bottom.height_field_raw])
         self.height_samples_by_row_col[i, j, :] = (
@@ -251,8 +241,8 @@ def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0
     pixel_x, pixel_y = terrain.height_field_raw.shape
     l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
 
-    mean_x = np.linspace(-l/2, l/2, num_x)
-    mean_y = np.linspace(-w/2, w/2, num_y)
+    mean_x = np.linspace(-l/2, l/2, num_x+2)
+    mean_y = np.linspace(-w/2, w/2, num_y+2)
     mean_x, mean_y = np.meshgrid(mean_x, mean_y)
     mean_x += np.random.uniform(-var_x, var_x, mean_x.shape)
     mean_x = mean_x.clip(-l/2, l/2)

@@ -796,7 +796,6 @@ class LeggedRobot(BaseTask):
             
             if len(plan_env_ids) > 0:
                 target_poses = []
-                self.plan_length_buf[plan_switch_id] = 0
                 goal_poses = self.trajectories[env_ids, self.curr_pose_index[env_ids]]
                 self.plan_length_buf[plan_env_ids] = 0
                 for env_id in plan_env_ids:
@@ -843,9 +842,9 @@ class LeggedRobot(BaseTask):
                 self._compute_relative_target_pose(self.local_target_poses)
             # import ipdb; ipdb.set_trace()
         else:
-            # self.local_target_poses = self.target_poses
+            self.local_target_poses = self.target_poses
             self.local_relative_linear, self.local_relative_rotation = \
-                self._compute_relative_target_pose(self.target_poses)
+                self._compute_relative_target_pose(self.local_target_poses)
         
     def _compute_relative_target_pose(self, target_poses):
         """ Computes the relative pose of the target with respect to the body
@@ -1586,11 +1585,11 @@ class LeggedRobot(BaseTask):
                 self.height_frames.append(self.height_frame)
 
     def start_recording(self):
-        self.complete_video_frames = []
+        self.complete_video_frames = None
         self.record_now = True
 
     def start_recording_eval(self):
-        self.complete_video_frames_eval = []
+        self.complete_video_frames_eval = None
         self.record_eval_now = True
 
     def pause_recording(self):
