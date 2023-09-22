@@ -236,6 +236,8 @@ class LeggedRobot(BaseTask):
                 episode_length_buf[train_env_ids].detach().cpu().numpy())
             self.extras["train/episode"]['reached'].extend(
                 self.reached_buf[train_env_ids].detach().cpu().numpy())
+            self.extras["train/episode"]['goal_distance'].extend(
+                torch.norm(self.relative_linear[train_env_ids], dim=1).detach().cpu().numpy())
             
             self.reached_env_buf[train_env_ids] = self.reached_buf[train_env_ids]  # this tracks the last reached state
             self.collision_env_buf[train_env_ids] = self.collision_count[train_env_ids] * self.reached_buf[train_env_ids]  # this tracks the last reached state
@@ -786,8 +788,9 @@ class LeggedRobot(BaseTask):
             # sampling-based planning
             close_to_goal = torch.norm(self.relative_linear[:, :2], dim=1) < 1.0
             self.plan_length_buf += 1
-            replan = self.plan_length_buf > self.cfg.commands.plan_interval
-            plan_buf = torch.logical_or(self.plan_buf, replan)
+            self.replan = self.plan_length_buf > self.cfg.commands.plan_interval
+            # switch the plan whenenver the agent reaches and the plan interval is reached
+            plan_buf = self.replan  # torch.logical_and(self.plan_buf, self.replan)
             plan_env_ids = plan_buf.nonzero(as_tuple=False).flatten()
             # plan_buf = torch.logical_and(self.plan_buf, ~close_to_goal)
             
@@ -797,7 +800,7 @@ class LeggedRobot(BaseTask):
                 self.plan_length_buf[plan_env_ids] = 0
                 for env_id in plan_env_ids:
                     if close_to_goal[env_id]:
-                        target_poses.append(self.target_poses[env_id])
+                        target_poses.append(self.target_poses[env_id])  
                     else:
                         candidate_target_poses_env = torch.from_numpy(self.cfg.commands.candidate_target_poses).to(self.device).float()
                         goal_pose = goal_poses[env_id]
@@ -1182,6 +1185,8 @@ class LeggedRobot(BaseTask):
         self.local_relative_linear = torch.zeros_like(self.target_poses[:, :3])
         self.local_relative_rotation = torch.zeros_like(self.target_poses[:, 3:])
         self.local_target_poses = torch.zeros_like(self.target_poses)
+        self.relative_linear = torch.zeros_like(self.target_poses[:, :3])
+        self.relative_rotation = torch.zeros_like(self.target_poses[:, 3:])
         self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
