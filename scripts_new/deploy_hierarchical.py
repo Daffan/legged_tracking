@@ -16,7 +16,7 @@ from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 
 from tqdm import tqdm
 
-LOAD_PATH = "wandb/run-20230921_153541-1i4agf8x/files"
+LOAD_PATH = "wandb/run-20230921_225519-tzxgofha/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -166,6 +166,8 @@ def play_go1(headless=True):
         with torch.no_grad():
             actions = policy(obs)
         obs, rew, done, info = env.step(actions)
+        # print(env.episode_sums["reaching_local_goal"])
+        print(env.episode_sums["exploration"])
 
         measured_x_vels[i] = env.base_lin_vel[0, 0]
         joint_positions[i] = env.dof_pos[0, :].cpu()

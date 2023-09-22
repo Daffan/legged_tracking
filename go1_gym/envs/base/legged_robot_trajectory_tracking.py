@@ -794,7 +794,6 @@ class LeggedRobot(BaseTask):
             plan_buf = torch.logical_or(ep_start, self.replan)
             plan_env_ids = plan_buf.nonzero(as_tuple=False).flatten()
             # plan_buf = torch.logical_and(self.plan_buf, ~close_to_goal)
-            print(self.episode_length_buf, len(plan_env_ids) > 0)
             
             if len(plan_env_ids) > 0:
                 target_poses = []
