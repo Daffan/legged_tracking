@@ -786,13 +786,15 @@ class LeggedRobot(BaseTask):
         self.relative_linear, self.relative_rotation = self._compute_relative_target_pose(self.target_poses)
         if self.cfg.commands.sampling_based_planning:
             # sampling-based planning
-            close_to_goal = torch.norm(self.relative_linear[:, :2], dim=1) < 1.0
             self.plan_length_buf += 1
-            self.replan = self.plan_length_buf > self.cfg.commands.plan_interval
+            close_to_goal = torch.norm(self.relative_linear[:, :2], dim=1) < 1.0
+            self.replan = (self.plan_length_buf % self.cfg.commands.plan_interval) == 0
+            ep_start = self.episode_length_buf == 1
             # switch the plan whenenver the agent reaches and the plan interval is reached
-            plan_buf = self.replan  # torch.logical_and(self.plan_buf, self.replan)
+            plan_buf = torch.logical_or(ep_start, self.replan)
             plan_env_ids = plan_buf.nonzero(as_tuple=False).flatten()
             # plan_buf = torch.logical_and(self.plan_buf, ~close_to_goal)
+            print(self.episode_length_buf, len(plan_env_ids) > 0)
             
             if len(plan_env_ids) > 0:
                 target_poses = []
