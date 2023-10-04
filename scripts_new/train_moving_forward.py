@@ -12,11 +12,11 @@ def train_go1(headless=True):
   
     # from ml_logger import logger
 
-    from go1_gym_learn.ppo_cse_cnn import Runner
+    from go1_gym_learn.ppo_cse import Runner
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
-    from go1_gym_learn.ppo_cse_cnn.actor_critic import AC_Args
-    from go1_gym_learn.ppo_cse_cnn.ppo import PPO_Args
-    from go1_gym_learn.ppo_cse_cnn import RunnerArgs
+    from go1_gym_learn.ppo_cse.actor_critic import AC_Args
+    from go1_gym_learn.ppo_cse.ppo import PPO_Args
+    from go1_gym_learn.ppo_cse import RunnerArgs
 
     import random
     import numpy as np
@@ -48,7 +48,7 @@ def train_go1(headless=True):
         Cfg.env.command_xy_only = False
         Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
         Cfg.env.num_scalar_observations = 265  # 507
-    Cfg.env.num_observation_history = 5
+    Cfg.env.num_observation_history = 1
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
@@ -71,18 +71,17 @@ def train_go1(headless=True):
     # Cfg.reward_scales.stalling = args.r_stalling
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
-    Cfg.reward_scales.linear_vel = -1.0  # penalize large linear velocity > 0.7 m/s
     Cfg.reward_scales.reaching_yaw_abs = -0.1
-    Cfg.reward_scales.reach_goal = 100
+    Cfg.reward_scales.reach_goal = 0
     # Cfg.reward_scales.reaching_z = -5.0
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
-    Cfg.reward_scales.dof_acc = -2.5e-7 * 5
+    Cfg.reward_scales.dof_acc = -2.5e-7 * 2
     Cfg.reward_scales.torques = -1e-5 * 2
     Cfg.reward_scales.dof_pos_limits = -10.0 * 2
     Cfg.reward_scales.collision = -1.0
-    Cfg.reward_scales.action_rate = -0.05
+    Cfg.reward_scales.action_rate = -0.01
     Cfg.reward_scales.orientation = 0.0  # -5.0
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.base_height = 0.0
@@ -126,12 +125,12 @@ def train_go1(headless=True):
         Cfg.commands.traj_function = "valid_goal"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
-        Cfg.commands.base_x = 5.0
+        Cfg.commands.base_x = 3.5
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 100
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.x_mean = 5.0
+    Cfg.commands.x_mean = 3.5
     Cfg.commands.y_mean = 0.0
     Cfg.commands.x_range = 0.4
     Cfg.commands.y_range = 0.0
@@ -169,7 +168,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_tunnel", action="store_true")
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--name", type=str, default="e2e")
+    parser.add_argument("--name", type=str, default="reward_velocity_only")
     parser.add_argument("--resume", type=str, default='')
     parser.add_argument("--r_explore", type=float, default=1.0)
     parser.add_argument("--r_stalling", type=float, default=1.0)

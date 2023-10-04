@@ -44,7 +44,7 @@ def load_policy(logdir, env):
                                 env.num_actions,
                                 ).to("cuda:0")
 
-    weights = torch.load(os.path.join(logdir, "checkpoints", "ac_weights.pt"))
+    weights = torch.load(os.path.join(logdir, "ac_weights.pt"))
     actor_critic.load_state_dict(state_dict=weights)
 
     def policy(obs, info={}):

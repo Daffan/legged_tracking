@@ -122,7 +122,7 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 10
     else:
-        Cfg.commands.traj_function = "fixed_target"
+        Cfg.commands.traj_function = "valid_goal"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
         Cfg.commands.base_x = 5.0

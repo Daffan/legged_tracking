@@ -158,6 +158,7 @@ class Cfg(PrefixProto, cli=False):
         # for inference vel obs
         global_reference = False
         switch_dist = 0.05
+        switch_yaw = 0.5
 
         sampling_based_planning = False
         plan_interval = 10  # replan every plan_interval steps

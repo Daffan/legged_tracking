@@ -775,7 +775,9 @@ class LeggedRobot(BaseTask):
         # cap to traj_length
         self.curr_pose_index[env_ids] = torch.clip(self.curr_pose_index[env_ids], max=self.cfg.commands.traj_length-1)
         self.reached_buf = torch.logical_and(self.switched_buf, self.curr_pose_index==self.cfg.commands.traj_length-1)
-        self.plan_buf = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
+        plan_buf_linear = torch.linalg.norm(self.local_relative_linear[:, :2], dim=1) < self.cfg.commands.switch_dist
+        plan_buf_yaw = torch.abs(self.local_relative_rotation[:, 2]) < self.cfg.commands.switch_yaw
+        self.plan_buf = torch.logical_and(plan_buf_linear, plan_buf_yaw)  # switch if both linear and yaw are reached
         self.collision_count += torch.sum((torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1).long(), dim=-1)
 
     def _plan_target_pose(self, env_ids):
@@ -788,10 +790,14 @@ class LeggedRobot(BaseTask):
             # sampling-based planning
             self.plan_length_buf += 1
             close_to_goal = torch.norm(self.relative_linear[:, :2], dim=1) < 1.0
-            self.replan = (self.plan_length_buf % self.cfg.commands.plan_interval) == 0
-            ep_start = self.episode_length_buf == 1
-            # switch the plan whenenver the agent reaches and the plan interval is reached
-            plan_buf = torch.logical_or(ep_start, self.replan)
+            if self.cfg.commands.plan_interval > 0:
+                self.replan = (self.plan_length_buf % self.cfg.commands.plan_interval) == 0
+                ep_start = self.episode_length_buf == 1
+                # switch the plan whenenver the agent reaches and the plan interval is reached
+                plan_buf = torch.logical_and(self.replan, self.plan_buf)
+                plan_buf = torch.logical_or(ep_start, plan_buf)
+            else:
+                plan_buf = torch.logical_or(ep_start, self.plan_buf)
             plan_env_ids = plan_buf.nonzero(as_tuple=False).flatten()
             # plan_buf = torch.logical_and(self.plan_buf, ~close_to_goal)
             

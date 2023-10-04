@@ -83,7 +83,7 @@ class TrajectoryTrackingRewards:
         , dim=1)
         r /= (torch.norm(self.env.local_relative_linear[:, :2], dim=1) + EPSILON)
         r /= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) + EPSILON)
-        r *= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) > 0.1).float()  # only reward when moving fast enough
+        r *= (torch.norm(self.env.base_lin_vel[:, :2], dim=1) > self.env.cfg.rewards.small_vel_threshold).float()  # only reward when moving fast enough
         return r
 
     def _reward_reaching_local_goal(self):
@@ -94,6 +94,9 @@ class TrajectoryTrackingRewards:
         small_vel = torch.norm(self.env.base_lin_vel[:, :2], dim=1) < self.env.cfg.rewards.small_vel_threshold
         large_dist = torch.norm(self.env.relative_linear[:, :2], dim=1) > self.env.cfg.rewards.large_dist_threshold
         return - (small_vel * large_dist).float()  #  - ((~small_vel) * (~large_dist)).float()
+    
+    def _reward_linear_vel(self):
+        return torch.norm(self.env.base_lin_vel[:, :3], dim=1) > 0.7
 
     
     # ------------ reward functions (trajectory tracking) ----------------
@@ -118,6 +121,9 @@ class TrajectoryTrackingRewards:
 
     def _reward_reaching_pitch(self):
         return torch.square(self.env.relative_rotation[:, 1])
+    
+    def _reward_reaching_yaw_abs(self):
+        return torch.square(self.env.relative_rotation[:, 2])
 
     def _reward_reaching_yaw(self):
         ''' rewarding the angular velocity to be close to
