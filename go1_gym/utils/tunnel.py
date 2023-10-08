@@ -245,11 +245,17 @@ def test_env(terrain, top=True):
     if top:
         mean_x = np.linspace(-l/2, l/2, 8)
         height = 0.3
+        offset_y = 0.5
+        var_y = 0.2
     else:
         mean_x = np.linspace(-l/2, l/2, 8)[:-1] + l / 16.0
         height = 0.2
+        offset_y = 0.7
+        var_y = 0.4
 
-    mean_y = np.linspace(-w/2, w/2, 3)
+    mean_y = np.linspace(-w/2 + offset_y, w/2 - offset_y, 2)
+    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
+    mean_y += np.random.uniform(-var_y, var_y, mean_y.shape)
     mean_z = np.ones_like(mean_x) * height
 
     means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
@@ -269,9 +275,14 @@ def test_env(terrain, top=True):
     ]
     wedge_points = wedge_points[:, idx, :]
 
-        # shape = (pixel_x, pixel_y, x_coord, y_coord)
+    # shape = (pixel_x, pixel_y, x_coord, y_coord)
     points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
     height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
+    if top:
+        height_field_raw[0, :] = 0.5
+        # height_field_raw[:, 0] = 0.5
+        height_field_raw[-1, :] = 0.5
+        # height_field_raw[:, -1] = 0.5
     terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
     
     return terrain

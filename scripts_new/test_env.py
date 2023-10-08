@@ -65,7 +65,7 @@ def train_go1(headless=True):
     Cfg.rewards.T_reach = 200
     Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.large_dist_threshold = 0.5
-    Cfg.rewards.only_positive_rewards = False
+    Cfg.rewards.only_positive_rewards = True
     Cfg.rewards.use_terminal_body_height = False
 
     # Cfg.reward_scales.stalling = args.r_stalling
@@ -73,7 +73,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.linear_vel = -1.0  # penalize large linear velocity > 0.7 m/s
     Cfg.reward_scales.reaching_yaw_abs = -0.1
-    Cfg.reward_scales.reach_goal = 100
+    Cfg.reward_scales.reach_goal = 0  # 100
     # Cfg.reward_scales.reaching_z = -5.0
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.rewards.exploration_steps = 100000000  # always explore
@@ -97,7 +97,7 @@ def train_go1(headless=True):
         Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_length = 4.0
-        Cfg.terrain.terrain_width = 3.0
+        Cfg.terrain.terrain_width = 1.5
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
 
@@ -111,17 +111,17 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 10
     else:
-        Cfg.commands.traj_function = "valid_goal"
+        Cfg.commands.traj_function = "fixed_target"
         Cfg.commands.traj_length = 1
         Cfg.commands.num_interpolation = 1
-        Cfg.commands.base_x = 5.0
+        Cfg.commands.base_x = 3.0
         Cfg.commands.sampling_based_planning = False
         Cfg.commands.plan_interval = 100
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.x_mean = 5.0
+    Cfg.commands.x_mean = 3.0
     Cfg.commands.y_mean = 0.0
-    Cfg.commands.x_range = 0.4
+    Cfg.commands.x_range = 0.0
     Cfg.commands.y_range = 0.0
     Cfg.commands.switch_dist = 0.3
     if args.start_target_dist > 0:
@@ -143,17 +143,17 @@ def train_go1(headless=True):
 
     env = HistoryWrapper(env)
 
-    import time
+    """ import time
     start = time.time()
     for i in range(100):
         print(i, end='\r')
-        action = torch.zeros(4000, 12).to(env.device)
+        action = torch.rand(4000, 12).to("cuda:0")
         env.step(action)
-    print(1000 * 4000 / (time.time() - start))
+    print(1000 * 4000 / (time.time() - start)) """
 
-    # gpu_id = 0
-    # runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
-    # runner.learn(num_learning_iterations=1000000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
+    gpu_id = 0
+    runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
+    runner.learn(num_learning_iterations=1000000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument("--r_explore", type=float, default=1.0)
     parser.add_argument("--r_stalling", type=float, default=1.0)
     parser.add_argument("--freeze_model", action="store_true")
-    parser.add_argument("--start_target_dist", type=float, default=0.6)
+    parser.add_argument("--start_target_dist", type=float, default=0.0)
     args = parser.parse_args()
 
     stem = Path(__file__).stem
