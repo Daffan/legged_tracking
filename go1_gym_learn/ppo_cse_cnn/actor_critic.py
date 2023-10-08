@@ -8,8 +8,10 @@ from torch.distributions import Normal
 class AC_Args(PrefixProto, cli=False):
     # policy
     init_noise_std = 1.0
-    actor_hidden_dims = [512, 256, 128]
-    critic_hidden_dims = [512, 256, 128]
+    # actor_hidden_dims = [512, 256, 128]
+    actor_hidden_dims = [256, 128]
+    # critic_hidden_dims = [512, 256, 128]
+    critic_hidden_dims = [256, 128]
     activation = 'elu'  # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
     adaptation_module_branch_hidden_dims = [256, 128]
@@ -36,8 +38,8 @@ class ActorCritic(nn.Module):
         self.num_privileged_obs = num_privileged_obs
 
         self.height_map_shape = (2, 11, 10)
-        self.cnn_num_embedding = 128
-        self.lstm_num_embedding = 128
+        self.cnn_num_embedding = 256
+        self.lstm_num_embedding = 256
         self.lstm_input_dim = num_obs - np.prod(self.height_map_shape) + self.cnn_num_embedding
 
         activation = get_activation(AC_Args.activation)
@@ -69,8 +71,6 @@ class ActorCritic(nn.Module):
                               AC_Args.adaptation_module_branch_hidden_dims[l + 1]))
                 adaptation_module_layers.append(activation)
         self.adaptation_module = nn.Sequential(*adaptation_module_layers)
-
-
 
         # Policy
         actor_layers = []

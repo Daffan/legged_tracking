@@ -158,6 +158,8 @@ class Terrain:
                 height_min=cfg.pyramid_height_min,
                 height_max=cfg.pyramid_height_max,
             )
+        elif terrain_type == "test_env":
+            test_env(terrain, top=top)
         else:
             raise ValueError
 
@@ -184,7 +186,6 @@ class Terrain:
                 j*self.width_per_env_pixels: (j+1)*self.width_per_env_pixels,
             ]
         )
-        # import ipdb; ipdb.set_trace()
         self.terrain_origins[i, j] = [(start_x) * self.horizontal_scale, (start_y) * self.horizontal_scale, 0]
 
         env_origin_x = (i + 0.5 - 0.325) * self.env_length  # an offset from the center
@@ -236,6 +237,44 @@ def pyramid_from_points(points):
     points [np.ndarray]: in shape (4, 3, 3). 4 planes with each defined by 3 points in 3D space
     """
     return lambda x, y: np.stack([plane_from_points(*ps)(x, y) for ps in points]).min(0)
+
+def test_env(terrain, top=True):
+    pixel_x, pixel_y = terrain.height_field_raw.shape
+    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
+
+    if top:
+        mean_x = np.linspace(-l/2, l/2, 8)
+        height = 0.3
+    else:
+        mean_x = np.linspace(-l/2, l/2, 8)[:-1] + l / 16.0
+        height = 0.2
+
+    mean_y = np.linspace(-w/2, w/2, 3)
+    mean_z = np.ones_like(mean_x) * height
+
+    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
+    pw, pl = np.random.uniform(low=0.3, high=0.3, size=(2, means.shape[0]))
+    wedge_points = np.stack([
+        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
+        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
+        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
+        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
+        means
+    ], axis=1)
+    idx = [
+        [0, 1, -1],
+        [1, 2, -1],
+        [2, 3, -1],
+        [3, 0, -1]
+    ]
+    wedge_points = wedge_points[:, idx, :]
+
+        # shape = (pixel_x, pixel_y, x_coord, y_coord)
+    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
+    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
+    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
+    
+    return terrain
 
 def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0.3, length_max=0.6, height_min=0.5, height_max=1.0, base_height=0.42):
     pixel_x, pixel_y = terrain.height_field_raw.shape
