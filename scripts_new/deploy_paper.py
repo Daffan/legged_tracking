@@ -17,8 +17,9 @@ from go1_gym.envs.go1.trajectory_tracking import TrajectoryTrackingEnv
 from tqdm import tqdm
 
 # LOAD_PATH = "wandb/run-20230914_164301-yuilazvd/files"
-LOAD_PATH = "wandb/run-20230914_173527-luqqe6t6/files"
+# LOAD_PATH = "wandb/run-20230914_173527-luqqe6t6/files"
 # LOAD_PATH = "wandb/run-20230915_062051-30d5ikhi/files"
+LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -71,6 +72,8 @@ def load_env(logdir, headless=False):
     Cfg.env.recording_width_px = 640
     Cfg.env.recording_height_px = 480
     Cfg.env.episode_length_s = 20
+    Cfg.env.timestep_in_obs = False
+    Cfg.commands.switch_dist = 0.6
 
     Cfg.terrain.terrain_length = 5.0
     Cfg.terrain.terrain_width = 3.0
@@ -120,22 +123,6 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_lag_timesteps = True
     Cfg.control.control_type = "actuator_net"
 
-    if False:
-        Cfg.terrain.mesh_type = 'plane'
-
-    Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.traj_length = 1
-    Cfg.commands.num_interpolation = 1
-    Cfg.commands.base_x = 3.0
-    Cfg.commands.base_y = 0.0
-    Cfg.commands.sampling_based_planning = True
-    Cfg.commands.plan_interval = 100
-    Cfg.commands.switch_dist = 0.4
-
-    Cfg.curriculum_thresholds.cl_fix_target = False
-    Cfg.env.rotate_camera = False
-    Cfg.env.camera_zero = False
-    Cfg.env.command_xy_only = False
     Cfg.env.viewer_look_at_robot = True
 
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
@@ -167,9 +154,12 @@ def play_go1(headless=True):
     env, policy = load_env(logdir, headless=headless)
     env.start_recording()
 
-    num_eval_steps = 2005
+    # num_eval_steps = 2005
+    num_eval_steps = 1001
 
     measured_x_vels = np.zeros(num_eval_steps)
+    measured_rolls = np.zeros(num_eval_steps)
+    measured_pitchs = np.zeros(num_eval_steps)
     joint_positions = np.zeros((num_eval_steps, 12))
 
     obs = env.reset()
@@ -183,6 +173,8 @@ def play_go1(headless=True):
         # print(env.episode_sums["exploration"])
 
         measured_x_vels[i] = env.base_lin_vel[0, 0]
+        measured_rolls[i] = env.base_rotation[0, 0]
+        measured_pitchs[i] = env.base_rotation[0, 1]
         joint_positions[i] = env.dof_pos[0, :].cpu()
 
         if done.any():
@@ -190,6 +182,7 @@ def play_go1(headless=True):
 
     frames = env.get_complete_frames()
 
+    """
     fps = 25
     out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frames[0].shape[1], frames[0].shape[0]), True)
     for frame in frames:
@@ -198,21 +191,26 @@ def play_go1(headless=True):
     """ 
     # plot target and measured forward velocity
     from matplotlib import pyplot as plt
-    fig, axs = plt.subplots(2, 1, figsize=(12, 5))
-    axs[0].plot(np.linspace(0, num_eval_steps * env.dt, num_eval_steps), measured_x_vels, color='black', linestyle="-", label="Measured")
+    fig, axs = plt.subplots(3, 1, figsize=(12, 7))
+    axs[0].plot(np.linspace(0, num_eval_steps * env.dt, i), measured_x_vels[:i], color='black', linestyle="-", label="Measured")
     # axs[0].plot(np.linspace(0, num_eval_steps * env.dt, num_eval_steps), target_x_vels, color='black', linestyle="--", label="Desired")
     axs[0].legend()
     axs[0].set_title("Forward Linear Velocity")
     axs[0].set_xlabel("Time (s)")
     axs[0].set_ylabel("Velocity (m/s)")
 
-    axs[1].plot(np.linspace(0, num_eval_steps * env.dt, num_eval_steps), joint_positions, linestyle="-", label="Measured")
-    axs[1].set_title("Joint Positions")
+    axs[1].plot(np.linspace(0, num_eval_steps * env.dt, i), measured_rolls[:i], linestyle="-", label="Measured")
+    axs[1].set_title("Rotation - Roll")
     axs[1].set_xlabel("Time (s)")
-    axs[1].set_ylabel("Joint Position (rad)")
+    axs[1].set_ylabel("(rad)")
+
+    axs[2].plot(np.linspace(0, num_eval_steps * env.dt, i), measured_pitchs[:i], linestyle="-", label="Measured")
+    axs[2].set_title("Rotation - Pitch")
+    axs[2].set_xlabel("Time (s)")
+    axs[2].set_ylabel("(rad)")
 
     plt.tight_layout()
-    plt.show() """
+    plt.show() 
 
 
 if __name__ == '__main__':

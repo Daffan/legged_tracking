@@ -863,7 +863,8 @@ class LeggedRobot(BaseTask):
         """
         relative_linear = target_poses[:, :3] - self.root_states[::self.num_actor][:, :3]
         relative_linear = quat_apply_yaw_inverse(self.base_quat, relative_linear)
-        relative_rotation = target_poses[:, 3:] - quaternion_to_roll_pitch_yaw(self.base_quat)
+        self.base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat)
+        relative_rotation = target_poses[:, 3:] - self.base_rotation
         relative_rotation = wrap_to_pi(relative_rotation)
         return relative_linear, relative_rotation
 
