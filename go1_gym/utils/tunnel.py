@@ -93,6 +93,9 @@ class Terrain:
                 elevation_map_bottom = terrain_bottom.height_field_raw.T * self.vertical_scale
                 elevation_map = np.stack([elevation_map_top, elevation_map_bottom])
 
+                if True:
+                    visual_elevation_map(elevation_map, cfg)
+
                 start_state = np.array([-0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
                 goal_state = np.array([0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
                 if cfg.valid_tunnel_only:
@@ -199,6 +202,26 @@ class Terrain:
         env_origin_z = 0.0 # np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
         self.all_terrain_origins[i, j] = [terrain_origin_x, terrain_origin_y, env_origin_z]
+
+
+from matplotlib import pyplot as plot
+
+def visual_elevation_map(elevation_map, cfg):
+    hs = cfg.horizontal_scale
+    vs = cfg.vertical_scale
+    ax = plt.figure().add_subplot(projection='3d')
+
+    for i, m in enumerate(elevation_map):
+        color = "blue" if i == 0 else "red"
+        for j, l in enumerate(m):
+            # if j % 4 == 0:
+            y = np.arange(0, len(l)) * hs
+            x = np.ones_like(y) * j * hs
+            z = l  # / vs
+            ax.plot(x, y, z, color=color, alpha=0.5)
+    ax.set_box_aspect([ub - lb for lb, ub in (getattr(ax, f'get_{a}lim')() for a in 'xyz')])
+
+    plt.show()
 
 def vec_plane_from_points(p1, p2, p3, xy):
     # p1, p2, p3: (num_pyramid, 4, 3)

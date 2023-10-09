@@ -75,25 +75,6 @@ def load_env(logdir, headless=False):
     Cfg.env.timestep_in_obs = False
     Cfg.commands.switch_dist = 0.6
 
-    Cfg.terrain.terrain_length = 5.0
-    Cfg.terrain.terrain_width = 3.0
-    Cfg.terrain.terrain_ratio_x = 0.5
-    Cfg.terrain.terrain_ratio_y = 1.0
-
-    Cfg.terrain.top.pyramid_num_x=2
-    Cfg.terrain.top.pyramid_num_y=2
-    Cfg.terrain.top.pyramid_var_x=0.3
-    Cfg.terrain.top.pyramid_var_y=0.3
-    Cfg.terrain.top.pyramid_height_max = 0.4
-    Cfg.terrain.top.pyramid_height_min = 0.2
-
-    Cfg.terrain.bottom.pyramid_num_x=2
-    Cfg.terrain.bottom.pyramid_num_y=2
-    Cfg.terrain.bottom.pyramid_var_x=0.3
-    Cfg.terrain.bottom.pyramid_var_y=0.3
-    Cfg.terrain.bottom.pyramid_height_max = 0.3
-    Cfg.terrain.bottom.pyramid_height_min = 0.1
-
     # turn off DR for evaluation script
     Cfg.domain_rand.push_robots = False
     Cfg.domain_rand.randomize_friction = False
@@ -182,13 +163,13 @@ def play_go1(headless=True):
 
     frames = env.get_complete_frames()
 
-    """
+    # """
     fps = 25
     out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frames[0].shape[1], frames[0].shape[0]), True)
     for frame in frames:
         out.write(frame[:, :, :3])
     out.release()
-    """ 
+    # """ 
     # plot target and measured forward velocity
     from matplotlib import pyplot as plt
     fig, axs = plt.subplots(3, 1, figsize=(12, 7))
