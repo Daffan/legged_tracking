@@ -48,18 +48,19 @@ def train_go1(headless=True):
     command_xy_only = True
     if command_xy_only:
         Cfg.env.command_xy_only = True
-        Cfg.env.num_observations = 261
-        Cfg.env.num_scalar_observations = 261
+        Cfg.env.num_observations = 261 + 1
+        Cfg.env.num_scalar_observations = 261 + 1
     else:
         Cfg.env.command_xy_only = False
-        Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
-        Cfg.env.num_scalar_observations = 265  # 507
+        Cfg.env.num_observations = 265 + 1  # 507  (consider height meaurement only at front)
+        Cfg.env.num_scalar_observations = 265 + 1  # 507
     Cfg.env.num_observation_history = 5
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = False
     Cfg.env.camera_zero = True
+    Cfg.env.timestep_in_obs = True
     Cfg.terrain.measure_front_half = True
 
     # asset
@@ -79,10 +80,10 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.linear_vel = -1.0  # penalize large linear velocity > 0.7 m/s
     Cfg.reward_scales.reaching_yaw_abs = -0.1
-    Cfg.reward_scales.reach_goal = 0  # 100
+    Cfg.reward_scales.reach_goal = 0.1  # 100
     # Cfg.reward_scales.reaching_z = -5.0
     Cfg.reward_scales.exploration = args.r_explore
-    Cfg.rewards.exploration_steps = 100000000  # always explore
+    Cfg.rewards.exploration_steps = 20000  # always explore
 
     Cfg.reward_scales.dof_acc = -2.5e-7 * 5
     Cfg.reward_scales.torques = -1e-5 * 2

@@ -102,7 +102,7 @@ class LeggedRobot(BaseTask):
             self.gym.render_all_camera_sensors(self.sim)
 
         self.episode_length_buf += 1
-        self.common_step_counter += 1
+        self.common_step_counter += 1  # this is for each individual environments
 
         # prepare quantities
         self.base_pos[:] = self.root_states[::self.num_actor][:self.num_envs, 0:3]
@@ -353,6 +353,9 @@ class LeggedRobot(BaseTask):
                                       self.dof_vel[:, :self.num_actuated_dof] * self.obs_scales.dof_vel,
                                       self.actions
                                       ), dim=-1)
+            if self.cfg.env.timestep_in_obs:
+                self.obs_buf = torch.cat((self.obs_buf,
+                                          self.episode_length_buf.unsqueeze(1) / self.max_episode_length), dim=-1)
             
         if self.cfg.env.observe_heights:
             # take the second half as front
@@ -1046,6 +1049,10 @@ class LeggedRobot(BaseTask):
                                    torch.ones(
                                        self.num_actuated_dof) * noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel,
                                    torch.zeros(self.num_actions),
+                                   ), dim=0)
+        if self.cfg.env.timestep_in_obs:
+            noise_vec = torch.cat((noise_vec,
+                                   torch.zeros(1)
                                    ), dim=0)
         if self.cfg.env.observe_heights:
             if self.cfg.terrain.measure_front_half:
