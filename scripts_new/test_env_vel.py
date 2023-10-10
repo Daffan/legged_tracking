@@ -12,17 +12,17 @@ def train_go1(headless=True):
   
     # from ml_logger import logger
 
-    """ from go1_gym_learn.ppo_cse_cnn import Runner
+    from go1_gym_learn.ppo_cse_cnn import Runner
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
     from go1_gym_learn.ppo_cse_cnn.actor_critic import AC_Args
     from go1_gym_learn.ppo_cse_cnn.ppo import PPO_Args
-    from go1_gym_learn.ppo_cse_cnn import RunnerArgs """
+    from go1_gym_learn.ppo_cse_cnn import RunnerArgs
 
-    from go1_gym_learn.ppo_cse import Runner
+    """ from go1_gym_learn.ppo_cse import Runner
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
     from go1_gym_learn.ppo_cse.actor_critic import AC_Args
     from go1_gym_learn.ppo_cse.ppo import PPO_Args
-    from go1_gym_learn.ppo_cse import RunnerArgs
+    from go1_gym_learn.ppo_cse import RunnerArgs """
 
     import random
     import numpy as np
@@ -48,18 +48,19 @@ def train_go1(headless=True):
     command_xy_only = True
     if command_xy_only:
         Cfg.env.command_xy_only = True
-        Cfg.env.num_observations = 261
-        Cfg.env.num_scalar_observations = 261
+        Cfg.env.num_observations = 261 + 1
+        Cfg.env.num_scalar_observations = 261 + 1
     else:
         Cfg.env.command_xy_only = False
-        Cfg.env.num_observations = 265  # 507  (consider height meaurement only at front)
-        Cfg.env.num_scalar_observations = 265  # 507
+        Cfg.env.num_observations = 265 + 1 # 507  (consider height meaurement only at front)
+        Cfg.env.num_scalar_observations = 265 + 1  # 507
     Cfg.env.num_observation_history = 5
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = False
     Cfg.env.camera_zero = True
+    Cfg.env.timestep_in_obs = True
     Cfg.terrain.measure_front_half = True
 
     # asset
@@ -71,7 +72,7 @@ def train_go1(headless=True):
     Cfg.rewards.T_reach = 200
     Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.large_dist_threshold = 0.5
-    Cfg.rewards.only_positive_rewards = True
+    Cfg.rewards.only_positive_rewards = args.only_positive
     Cfg.rewards.use_terminal_body_height = False
 
     # Cfg.reward_scales.stalling = args.r_stalling
@@ -79,16 +80,18 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.linear_vel = -1.0  # penalize large linear velocity > 0.7 m/s
     Cfg.reward_scales.reaching_yaw_abs = -0.1
-    Cfg.reward_scales.reach_goal_t = 0.1  # 100
+    Cfg.reward_scales.reach_goal_t = 0.0  # 100
+    Cfg.reward_scales.reach_goal = 0.0  # 100
     # Cfg.reward_scales.reaching_z = -5.0
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
-    Cfg.reward_scales.dof_acc = -2.5e-7 * 5
-    Cfg.reward_scales.torques = -1e-5 * 2
-    Cfg.reward_scales.dof_pos_limits = -10.0 * 2
-    Cfg.reward_scales.collision = -1.0
-    Cfg.reward_scales.action_rate = -0.05
+    penalty_scaler = args.penalty_scaler
+    Cfg.reward_scales.dof_acc = -2.5e-7 * penalty_scaler
+    Cfg.reward_scales.torques = -1e-5 * penalty_scaler
+    Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
+    Cfg.reward_scales.collision = -1.0 * penalty_scaler
+    Cfg.reward_scales.action_rate = -0.05 * penalty_scaler
     Cfg.reward_scales.orientation = 0.0  # -5.0
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.base_height = 0.0
@@ -178,6 +181,8 @@ if __name__ == '__main__':
     parser.add_argument("--r_stalling", type=float, default=1.0)
     parser.add_argument("--freeze_model", action="store_true")
     parser.add_argument("--start_target_dist", type=float, default=0.0)
+    parser.add_argument("--penalty_scaler", type=float, default=1.0)
+    parser.add_argument("--only_positive", action="store_true")
     args = parser.parse_args()
 
     stem = Path(__file__).stem

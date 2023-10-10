@@ -8,10 +8,10 @@ from torch.distributions import Normal
 class AC_Args(PrefixProto, cli=False):
     # policy
     init_noise_std = 1.0
-    # actor_hidden_dims = [512, 256, 128]
-    actor_hidden_dims = [256, 256, 128]
-    # critic_hidden_dims = [512, 256, 128]
-    critic_hidden_dims = [256, 256, 128]
+    actor_hidden_dims = [512, 256, 128]
+    # actor_hidden_dims = [256, 256, 128]
+    critic_hidden_dims = [512, 256, 128]
+    # critic_hidden_dims = [256, 256, 128]
     activation = 'elu'  # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
 
     adaptation_module_branch_hidden_dims = [256, 128]
@@ -26,6 +26,7 @@ class ActorCritic(nn.Module):
                  num_privileged_obs,
                  num_obs_history,
                  num_actions,
+                 use_cnn=False,
                  **kwargs):
         if kwargs:
             print("ActorCritic.__init__ got unexpected arguments, which will be ignored: " + str(
@@ -38,28 +39,35 @@ class ActorCritic(nn.Module):
         self.num_privileged_obs = num_privileged_obs
 
         self.height_map_shape = (2, 11, 10)
-        self.cnn_num_embedding = 256
-        self.lstm_num_embedding = 256
-        self.lstm_input_dim = num_obs - np.prod(self.height_map_shape) + self.cnn_num_embedding
+        self.cnn_num_embedding = int(np.prod(self.height_map_shape)) # 128
+        self.lstm_num_embedding = 128
+        self.lstm_input_dim = int(num_obs - np.prod(self.height_map_shape) + self.cnn_num_embedding)
+        self.policy_input_dim = int(num_obs - np.prod(self.height_map_shape) + self.lstm_num_embedding)
 
         activation = get_activation(AC_Args.activation)
 
         # height_map is in shape (2, 11, 10)
-        self.height_map_embedding = nn.Sequential(
-            nn.Conv2d(2, 32, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=2, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(576, self.cnn_num_embedding),
-        )
+        if use_cnn:
+            self.height_map_embedding = nn.Sequential(
+                nn.Conv2d(2, 32, kernel_size=4, stride=2, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, kernel_size=2, stride=2, padding=1),
+                nn.ReLU(),
+                nn.Flatten(),
+                nn.Linear(576, self.cnn_num_embedding),
+            )
+        else:
+            self.height_map_embedding = nn.Sequential(
+                nn.Flatten(),
+                # nn.Linear(int(np.prod(self.height_map_shape)),  self.cnn_num_embedding)
+            )
 
         # two layers of LSTM
-        self.recurrent_latent_embedding = nn.LSTM(self.lstm_input_dim, self.lstm_num_embedding, num_layers=2)
+        self.recurrent_latent_embedding = nn.GRU(self.lstm_input_dim, self.lstm_num_embedding, num_layers=1)
 
         # Adaptation module
         adaptation_module_layers = []
-        adaptation_module_layers.append(nn.Linear(self.lstm_num_embedding, AC_Args.adaptation_module_branch_hidden_dims[0]))
+        adaptation_module_layers.append(nn.Linear(self.policy_input_dim, AC_Args.adaptation_module_branch_hidden_dims[0]))
         adaptation_module_layers.append(activation)
         for l in range(len(AC_Args.adaptation_module_branch_hidden_dims)):
             if l == len(AC_Args.adaptation_module_branch_hidden_dims) - 1:
@@ -74,7 +82,7 @@ class ActorCritic(nn.Module):
 
         # Policy
         actor_layers = []
-        actor_layers.append(nn.Linear(self.num_privileged_obs + self.lstm_num_embedding, AC_Args.actor_hidden_dims[0]))
+        actor_layers.append(nn.Linear(self.num_privileged_obs + self.policy_input_dim, AC_Args.actor_hidden_dims[0]))
         actor_layers.append(activation)
         for l in range(len(AC_Args.actor_hidden_dims)):
             if l == len(AC_Args.actor_hidden_dims) - 1:
@@ -86,7 +94,7 @@ class ActorCritic(nn.Module):
 
         # Value function
         critic_layers = []
-        critic_layers.append(nn.Linear(self.num_privileged_obs + self.lstm_num_embedding, AC_Args.critic_hidden_dims[0]))
+        critic_layers.append(nn.Linear(self.num_privileged_obs + self.policy_input_dim, AC_Args.critic_hidden_dims[0]))
         critic_layers.append(activation)
         for l in range(len(AC_Args.critic_hidden_dims)):
             if l == len(AC_Args.critic_hidden_dims) - 1:
@@ -141,7 +149,11 @@ class ActorCritic(nn.Module):
             height_map_embedding
         ], dim=-1)
         recurrent_latent, _ = self.recurrent_latent_embedding(lstm_input)
-        return recurrent_latent[:, -1, :]
+        policy_input = torch.cat([
+            observation_history[:, -1, :-np.prod(self.height_map_shape)],
+            recurrent_latent[:, -1, :]
+        ], dim=-1)
+        return policy_input
 
     def update_distribution(self, observation_history):
         recurrent_latent = self.process_obs_history(observation_history)
