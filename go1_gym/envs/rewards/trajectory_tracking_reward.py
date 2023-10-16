@@ -64,6 +64,10 @@ class TrajectoryTrackingRewards:
     def _reward_reach_goal_t(self):
         return self.env.reached_buf * self.env.episode_length_buf.float()
     
+    def _reward_reach_goal_T(self):
+        return self.env.reached_buf * (self.env.episode_length_buf > self.env.cfg.rewards.T_reach).float()
+    
+    
     def _reward_task(self):
         # when the distance is smaller than 0.5m and T > T_reach, perform velocity tracking
         # this can help keep stable at goal position

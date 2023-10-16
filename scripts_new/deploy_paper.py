@@ -19,7 +19,8 @@ from tqdm import tqdm
 # LOAD_PATH = "wandb/run-20230914_164301-yuilazvd/files"
 # LOAD_PATH = "wandb/run-20230914_173527-luqqe6t6/files"
 # LOAD_PATH = "wandb/run-20230915_062051-30d5ikhi/files"
-LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
+# LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
+LOAD_PATH = "wandb/run-20231012_100137-ywktqzio/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -36,7 +37,7 @@ def load_policy(logdir):
 
     return policy
 
-from go1_gym_learn.ppo_cse import ActorCritic
+from go1_gym_learn.ppo_cse_cnn import ActorCritic
 import os
 
 def load_policy(logdir, env):
@@ -72,7 +73,8 @@ def load_env(logdir, headless=False):
     Cfg.env.recording_width_px = 640
     Cfg.env.recording_height_px = 480
     Cfg.env.episode_length_s = 20
-    Cfg.env.timestep_in_obs = False
+    Cfg.env.timestep_in_obs = True
+    Cfg.env.num_history = 5
     Cfg.commands.switch_dist = 0.6
 
     # turn off DR for evaluation script

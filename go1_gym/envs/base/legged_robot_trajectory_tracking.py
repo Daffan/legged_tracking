@@ -185,7 +185,8 @@ class LeggedRobot(BaseTask):
             self.reset_buf = torch.logical_or(self.body_height_buf, self.reset_buf)
 
         if self.cfg.env.terminate_end_of_trajectory:
-            self.reset_buf = torch.logical_or(self.reached_buf, self.reset_buf)
+            reached_buf = torch.logical_and(self.reached_buf, self.episode_length_buf > self.cfg.rewards.T_reach)
+            self.reset_buf = torch.logical_or(reached_buf, self.reset_buf)
 
     def reset_idx(self, env_ids):
         """ Reset some environments.
