@@ -93,7 +93,7 @@ class Terrain:
                 elevation_map_bottom = terrain_bottom.height_field_raw.T * self.vertical_scale
                 elevation_map = np.stack([elevation_map_top, elevation_map_bottom])
 
-                if True:
+                if k == 0:
                     visual_elevation_map(elevation_map, cfg)
 
                 start_state = np.array([-0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
@@ -163,6 +163,8 @@ class Terrain:
             )
         elif terrain_type == "test_env":
             test_env(terrain, top=top)
+        elif terrain_type == "test_env_2":
+            test_env_2(terrain, top=top)
         else:
             raise ValueError
 
@@ -266,13 +268,13 @@ def test_env_2(terrain, top=True):
     l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
 
     if top:
-        offset_y = 0.2
-        height_max, height_min = 0.3, 0.2
-        lw_low, lw_high = 0.1, 0.1
+        offset_y = 0.1
+        height_max, height_min = 0.30, 0.30
+        lw_low, lw_high = 0.05, 0.05
     else:
-        offset_y = -0.1
-        height_max, height_min = 0.2, 0.1
-        lw_low, lw_high = 0.1, 0.1
+        offset_y = -0.03
+        height_max, height_min = 0.2, 0.2
+        lw_low, lw_high = 0.05, 0.05
 
     mean_x = np.zeros(1)
     mean_y = np.zeros(1)

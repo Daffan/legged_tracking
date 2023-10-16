@@ -111,8 +111,9 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_y = 1.0
     elif args.terrain == "test_2":
         Cfg.terrain.terrain_type = "test_env_2"
+        Cfg.terrain.horizontal_scale = 0.01
         Cfg.terrain.terrain_length = 2.0
-        Cfg.terrain.terrain_width = 0.32
+        Cfg.terrain.terrain_width = 0.4
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
 
@@ -178,7 +179,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--no_tunnel", action="store_true")
+    parser.add_argument("--terrain", default="pyramid", choices=["pyramid", "plane", "test_1", "test_2"])
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--name", type=str, default="e2e")
