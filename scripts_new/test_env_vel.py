@@ -110,7 +110,7 @@ def train_go1(headless=True):
         Cfg.terrain.horizontal_scale = 0.01
         Cfg.terrain.terrain_length = 2.0
         Cfg.terrain.terrain_width = 0.4
-        Cfg.terrain.terrain_ratio_x = 0.5
+        Cfg.terrain.terrain_ratio_x = 0.8
         Cfg.terrain.terrain_ratio_y = 1.0
 
         Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)

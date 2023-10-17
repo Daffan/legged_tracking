@@ -176,12 +176,16 @@ class Terrain:
         #terrain.height_field_raw[0, :] = int(0.1 / self.vertical_scale)
         #terrain.height_field_raw[-1, :] = int(0.1 / self.vertical_scale)
         # map coordinate system
-        start_x = int((i + 0.5 - self.terrain_ratio_x/2.) * self.length_per_env_pixels)
-        end_x = int((i + 0.5 + self.terrain_ratio_x/2.) * self.length_per_env_pixels)
+        start_x = int(round((i + 0.5 - self.terrain_ratio_x/2.) * self.length_per_env_pixels, 4))
+        end_x = int(round((i + 0.5 + self.terrain_ratio_x/2.) * self.length_per_env_pixels, 4))
         start_y = int((j + 0.5 - self.terrain_ratio_y/2.) * self.width_per_env_pixels)
         end_y = int((j + 0.5 + self.terrain_ratio_y/2.) * self.width_per_env_pixels)
-        self.height_field_raw[0, start_x: end_x, start_y:end_y] = terrain_top.height_field_raw.T
-        self.height_field_raw[1, start_x: end_x, start_y:end_y] = terrain_bottom.height_field_raw.T
+        
+        try:
+            self.height_field_raw[0, start_x: end_x, start_y:end_y] = terrain_top.height_field_raw.T
+            self.height_field_raw[1, start_x: end_x, start_y:end_y] = terrain_bottom.height_field_raw.T
+        except:
+            import ipdb; ipdb.set_trace()
         
         self.height_field_env.append([terrain_top.height_field_raw, terrain_bottom.height_field_raw])
         self.height_samples_by_row_col[i, j, :] = (
@@ -193,7 +197,7 @@ class Terrain:
         )
         self.terrain_origins[i, j] = [(start_x) * self.horizontal_scale, (start_y) * self.horizontal_scale, 0]
 
-        env_origin_x = (i + 0.5 - 0.325) * self.env_length  # an offset from the center
+        env_origin_x = (i + 0.5 - 0.275) * self.env_length  # an offset from the center
         terrain_origin_x = i * self.env_length
         terrain_origin_y = j * self.env_width
         env_origin_y = (j + 0.5) * self.env_width
@@ -268,11 +272,11 @@ def test_env_2(terrain, top=True):
     l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
 
     if top:
-        offset_y = 0.1
+        offset_y = 0.08
         height_max, height_min = 0.30, 0.30
         lw_low, lw_high = 0.05, 0.05
     else:
-        offset_y = -0.03
+        offset_y = -0.08
         height_max, height_min = 0.2, 0.2
         lw_low, lw_high = 0.05, 0.05
 
