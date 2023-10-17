@@ -1205,6 +1205,7 @@ class LeggedRobot(BaseTask):
         self.relative_rotation = torch.zeros_like(self.target_poses[:, 3:])
         self.plan_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
         self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        self.height_frame = torch.zeros((self.num_envs, 1, 64, 64), dtype=torch.float, device=self.device, requires_grad=False)
 
         if self.cfg.env.command_xy_only:
             self.commands = torch.zeros_like(self.trajectories[:, 0, :2])  # (num_envs, poses dof=6)  
@@ -1576,12 +1577,16 @@ class LeggedRobot(BaseTask):
             self.video_frame = self.video_frame.reshape((self.camera_props.height, self.camera_props.width, 4))
             self.video_frames.append(self.video_frame)
 
-            try:
+            """ try:
                 self.height_frame = self.get_height_frame(env_id)  # self.measured_heights.detach().cpu().numpy()
             except Exception as e:
                 print(e)
                 pass
-            self.height_frames.append(self.height_frame)
+
+            try:
+                self.height_frames.append(self.height_frame)
+            except:
+                self.height_frames.append(np.ones_like(self.video_frame) * 255) """
 
         if self.record_eval_now and self.complete_video_frames_eval is not None and len(
                 self.complete_video_frames_eval) == 0:
@@ -1624,14 +1629,15 @@ class LeggedRobot(BaseTask):
     def get_complete_frames(self):
         if self.complete_video_frames is None:
             return []
-        # return self.complete_video_frames
-        return [np.concatenate([vf, hf], axis=1) for vf, hf in zip(self.complete_video_frames, self.complete_height_frames)]
+        else:
+            return self.complete_video_frames
+        # return [np.concatenate([vf, hf], axis=1) for vf, hf in zip(self.complete_video_frames, self.complete_height_frames)]
 
     def get_complete_frames_eval(self):
         if self.complete_video_frames_eval is None:
             return []
-        # return self.complete_video_frames_eval
-        return [np.concatenate([vf, hf], axis=1) for vf, hf in zip(self.complete_video_frames_eval, self.complete_height_frames_eval)]
+        return self.complete_video_frames_eval
+        # return [np.concatenate([vf, hf], axis=1) for vf, hf in zip(self.complete_video_frames_eval, self.complete_height_frames_eval)]
 
     def _get_env_origins(self, env_ids, cfg: Cfg):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.

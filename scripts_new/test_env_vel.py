@@ -12,18 +12,11 @@ def train_go1(headless=True):
   
     # from ml_logger import logger
 
-    if args.gru:
-        from go1_gym_learn.ppo_cse_cnn import Runner
-        from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
-        from go1_gym_learn.ppo_cse_cnn.actor_critic import AC_Args
-        from go1_gym_learn.ppo_cse_cnn.ppo import PPO_Args
-        from go1_gym_learn.ppo_cse_cnn import RunnerArgs
-    else:
-        from go1_gym_learn.ppo_cse import Runner
-        from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
-        from go1_gym_learn.ppo_cse.actor_critic import AC_Args
-        from go1_gym_learn.ppo_cse.ppo import PPO_Args
-        from go1_gym_learn.ppo_cse import RunnerArgs
+    from go1_gym_learn.ppo_cse_cnn import Runner
+    from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
+    from go1_gym_learn.ppo_cse_cnn.actor_critic import AC_Args
+    from go1_gym_learn.ppo_cse_cnn.ppo import PPO_Args
+    from go1_gym_learn.ppo_cse_cnn import RunnerArgs
 
     import random
     import numpy as np
@@ -39,10 +32,11 @@ def train_go1(headless=True):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+    AC_Args.use_gru = args.gru
+    AC_Args.use_cnn = args.cnn
+
     config_go1(Cfg)
     # observation space
-    Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
-    Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.observe_heights = True
     Cfg.env.num_envs = 4000
     
@@ -55,14 +49,16 @@ def train_go1(headless=True):
         Cfg.env.command_xy_only = False
         Cfg.env.num_observations = 265 + 1 # 507  (consider height meaurement only at front)
         Cfg.env.num_scalar_observations = 265 + 1  # 507
+    Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
+    Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.num_observation_history = args.num_history
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = True
     Cfg.env.episode_length_s = 20
-    Cfg.env.rotate_camera = False
-    Cfg.env.camera_zero = True
+    Cfg.env.rotate_camera = args.rotate_camera
+    Cfg.env.camera_zero = args.camera_zero
     Cfg.env.timestep_in_obs = args.timestep_in_obs
-    Cfg.terrain.measure_front_half = True
+    Cfg.terrain.measure_front_half = args.measure_front_half
 
     # asset
     # change to not terminate on, but just penalize base contact, 
@@ -117,6 +113,18 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_x = 0.5
         Cfg.terrain.terrain_ratio_y = 1.0
 
+        Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)
+        Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 31)
+        Cfg.env.measure_front_half = False
+        if command_xy_only:
+            Cfg.env.command_xy_only = True
+            Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 - 4
+            Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 - 4
+        else:
+            Cfg.env.command_xy_only = False
+            Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 + 4
+            Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 + 4
+
     # goal
     Cfg.commands.base_z = 0.29
     if args.random_target:
@@ -152,7 +160,8 @@ def train_go1(headless=True):
     
     RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
-    env = TrajectoryTrackingEnv(sim_device='cuda:0', headless=args.headless, cfg=Cfg)
+    gpu_id = args.device
+    env = TrajectoryTrackingEnv(sim_device=f"cuda:{gpu_id}", headless=args.headless, cfg=Cfg)
 
     if args.wandb:
         wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
@@ -167,8 +176,7 @@ def train_go1(headless=True):
         env.step(action)
     print(1000 * 4000 / (time.time() - start)) """
 
-    gpu_id = 0
-    runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, log_wandb=args.wandb)
+    runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
     runner.learn(num_learning_iterations=1000000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
@@ -191,8 +199,13 @@ if __name__ == '__main__':
     parser.add_argument("--penalty_scaler", type=float, default=1.0)
     parser.add_argument("--only_positive", action="store_true")
     parser.add_argument("--gru", action="store_true")
+    parser.add_argument("--cnn", action="store_true")
     parser.add_argument("--timestep_in_obs", action="store_true")
     parser.add_argument("--num_history", type=int, default=5)
+    parser.add_argument("--measure_front_half", action="store_true")
+    parser.add_argument("--rotate_camera", action="store_true")
+    parser.add_argument("--camera_zero", action="store_true")
+    parser.add_argument("--device", default=0, type=int)
 
     args = parser.parse_args()
 
