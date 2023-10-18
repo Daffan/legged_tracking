@@ -20,7 +20,7 @@ from tqdm import tqdm
 # LOAD_PATH = "wandb/run-20230914_173527-luqqe6t6/files"
 # LOAD_PATH = "wandb/run-20230915_062051-30d5ikhi/files"
 # LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
-LOAD_PATH = "wandb/run-20231012_100137-ywktqzio/files"
+LOAD_PATH = "wandb/run-20231016_233057-wn7jngb6/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -37,16 +37,17 @@ def load_policy(logdir):
 
     return policy
 
-from go1_gym_learn.ppo_cse_cnn import ActorCritic
+from go1_gym_learn.ppo_cse_cnn import ActorCritic, AC_Args
 import os
 
-def load_policy(logdir, env):
-
+def load_policy(logdir, env, device='cuda:0'):
+    AC_Args.use_cnn = True
+    AC_Args.use_gru = False
     actor_critic = ActorCritic(env.num_obs,
                                 env.num_privileged_obs,
                                 env.num_obs_history,
                                 env.num_actions,
-                                ).to("cuda:0")
+                                ).to(device)
 
     weights = torch.load(os.path.join(logdir, "checkpoints", "ac_weights.pt"))
     actor_critic.load_state_dict(state_dict=weights)
@@ -119,7 +120,7 @@ def load_env(logdir, headless=False):
     # from ml_logger import logger
     from go1_gym_learn.ppo_cse.actor_critic import ActorCritic
 
-    policy = load_policy(logdir, env)
+    policy = load_policy(logdir, env, device='cuda:0')
 
     return env, policy
 
