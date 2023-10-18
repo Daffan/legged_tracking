@@ -9,6 +9,7 @@ from isaacgym.torch_utils import *
 
 assert gymtorch
 import torch
+import numpy as np
 
 from go1_gym import MINI_GYM_ROOT_DIR
 from go1_gym.envs.base.base_task import BaseTask
@@ -987,6 +988,18 @@ class LeggedRobot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32 * self.num_actor), len(env_ids_int32))
+        
+        self.root_states[self.wall_1_indices][env_ids] = self.wall_1_init_states
+        self.gym.set_actor_root_state_tensor_indexed(
+            self.sim,
+            gymtorch.unwrap_tensor(self.root_states),
+            gymtorch.unwrap_tensor(self.wall_1_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
+
+        self.root_states[self.wall_2_indices][env_ids] = self.wall_2_init_states
+        self.gym.set_actor_root_state_tensor_indexed(
+            self.sim,
+            gymtorch.unwrap_tensor(self.root_states),
+            gymtorch.unwrap_tensor(self.wall_2_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
 
         if cfg.env.record_video and 0 in env_ids:
             if self.complete_video_frames is None:
@@ -1132,7 +1145,7 @@ class LeggedRobot(BaseTask):
                                self.feet_indices,
                                7:10]
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
-                              0:3]
+                              0:3] - self.base_pos
         self.prev_base_pos = self.base_pos.clone()
         self.prev_foot_velocities = self.foot_velocities.clone()
 
@@ -1265,6 +1278,11 @@ class LeggedRobot(BaseTask):
             self.joint_pos_err_last = torch.zeros((self.num_envs, 12), device=self.device)
             self.joint_vel_last_last = torch.zeros((self.num_envs, 12), device=self.device)
             self.joint_vel_last = torch.zeros((self.num_envs, 12), device=self.device)
+
+        self.wall_1_indices = torch.arange(self.num_envs).to(self.device) + 1
+        self.wall_2_indices = torch.arange(self.num_envs).to(self.device) + 2
+        self.wall_1_init_states = self.root_states[self.wall_1_indices].clone()
+        self.wall_2_init_states = self.root_states[self.wall_2_indices].clone()
 
     def _init_custom_buffers__(self):
         # domain randomization properties
@@ -1428,6 +1446,21 @@ class LeggedRobot(BaseTask):
         arrow_asset_file = "arrow.urdf"
         arrow_asset = self.gym.load_asset(self.sim, arrow_asset_root, arrow_asset_file, asset_options)
 
+        asset_options = gymapi.AssetOptions()
+        asset_options.fix_base_link = False
+        asset_options.disable_gravity = False
+        asset_options.armature = 0.005
+        asset_options.density = 100000.0
+        asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
+        terrain_length = self.cfg.terrain.terrain_length
+        terrain_width = self.cfg.terrain.terrain_width
+        v_wall_asset = self.gym.create_box(self.sim, terrain_length, self.cfg.terrain.horizontal_scale * 10, 0.4, asset_options)
+
+        v_wall_dof_props = self.gym.get_asset_dof_properties(v_wall_asset)
+        self.num_v_wall_dofs = self.gym.get_asset_dof_count(v_wall_asset)
+        for i in range(self.num_v_wall_dofs):
+            v_wall_dof_props['damping'][i] = 10.0
+
         # save body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(self.robot_asset)
         self.dof_names = self.gym.get_asset_dof_names(self.robot_asset)
@@ -1476,17 +1509,50 @@ class LeggedRobot(BaseTask):
             rigid_shape_props = self._process_rigid_shape_props(rigid_shape_props_asset, i)
             self.gym.set_asset_rigid_shape_properties(self.robot_asset, rigid_shape_props)
             anymal_handle = self.gym.create_actor(env_handle, self.robot_asset, start_pose, "anymal", i,
-                                                  self.cfg.asset.self_collisions, 0)
+                                                  1, 0)
             dof_props = self._process_dof_props(dof_props_asset, i)
             self.gym.set_actor_dof_properties(env_handle, anymal_handle, dof_props)
             body_props = self.gym.get_actor_rigid_body_properties(env_handle, anymal_handle)
             body_props = self._process_rigid_body_props(body_props, i)
             self.gym.set_actor_rigid_body_properties(env_handle, anymal_handle, body_props, recomputeInertia=True)
 
+            if self.cfg.terrain.mesh_type != "plane":
+                env_origin = np.array([
+                    (self.grid_r[i].item() + 0.5) * terrain_length,
+                    (self.grid_c[i].item() + 0.5) * terrain_width - self.cfg.terrain.horizontal_scale / 2.0,
+                    0.0
+                ])
+                wall_pose = gymapi.Transform()
+
+                pos = env_origin.copy()
+                pass; pos[1] += (terrain_width/2. + self.cfg.terrain.horizontal_scale * 5); pos[2] += 0.2
+                wall_pose.p = gymapi.Vec3(*pos)
+                v_wall_actor = self.gym.create_actor(env_handle, v_wall_asset, wall_pose, "wall_left", i, 2, 0)
+                self.gym.set_actor_dof_properties(env_handle, v_wall_actor, v_wall_dof_props)
+
+                pos = env_origin.copy()
+                pass; pos[1] -= (terrain_width/2. + self.cfg.terrain.horizontal_scale * 5); pos[2] += 0.2
+                wall_pose.p = gymapi.Vec3(*pos)
+                v_wall_actor = self.gym.create_actor(env_handle, v_wall_asset, wall_pose, "wall_right", i, 2, 0)
+                self.gym.set_actor_dof_properties(env_handle, v_wall_actor, v_wall_dof_props)
+
+                """ pos = env_origin.copy()
+                pos[0] -= tunnel_length/2.; pass; pos[2] += 0.2
+                wall_pose.p = gymapi.Vec3(*pos)
+                wall_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.pi * 0.5)
+                self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_back", i, 0, 0)
+
+                pos = env_origin.copy()
+                pos[0] += tunnel_length/2.; pass; pos[2] += 0.2
+                wall_pose.p = gymapi.Vec3(*pos)
+                wall_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.pi * 0.5)
+                self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_front", i, 0, 0)
+                """
+                # self.num_actor += 2
+
             # adding arrow to visualize the goal position
-            
             arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
-            self.num_actor = 2
+            self.num_actor = 4
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
 
@@ -1559,7 +1625,7 @@ class LeggedRobot(BaseTask):
             bz = self.root_states[env_id * self.num_actor, 2]
             if self.cfg.env.look_from_back:
                 pos_target = torch.tensor([
-                [-0.295-0.1, 0, 0.35],
+                [-0.295-0.2, 0, 0.35],
                 [0, 0, 0.25]
                 ], device=self.device)
                 # Right now it does not rotate with the robot

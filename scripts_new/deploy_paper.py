@@ -41,12 +41,13 @@ from go1_gym_learn.ppo_cse_cnn import ActorCritic, AC_Args
 import os
 
 def load_policy(logdir, env, device='cuda:0'):
-    AC_Args.use_cnn = True
+    AC_Args.use_cnn = False
     AC_Args.use_gru = False
     actor_critic = ActorCritic(env.num_obs,
                                 env.num_privileged_obs,
                                 env.num_obs_history,
                                 env.num_actions,
+                                ac_args=AC_Args
                                 ).to(device)
 
     weights = torch.load(os.path.join(logdir, "checkpoints", "ac_weights.pt"))
@@ -75,7 +76,7 @@ def load_env(logdir, headless=False):
     Cfg.env.recording_height_px = 480
     Cfg.env.episode_length_s = 20
     Cfg.env.timestep_in_obs = True
-    Cfg.env.num_history = 5
+    Cfg.env.num_history = 1
     Cfg.commands.switch_dist = 0.6
 
     # turn off DR for evaluation script
