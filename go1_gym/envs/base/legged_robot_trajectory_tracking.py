@@ -762,14 +762,19 @@ class LeggedRobot(BaseTask):
         env_ids = torch.arange(self.num_envs).to(self.device)
         self._plan_target_pose(env_ids)
         self._set_the_target_pose_visual(torch.arange(self.num_envs, device=self.device), self.local_target_poses)
-        if self.cfg.env.command_xy_only:
+        if self.cfg.env.command_type == "xy":
             self.commands = self.local_relative_linear[:, :2]
-        else:
+        elif self.cfg.env.command_type == "xy_norm":
+            self.commands = self.local_relative_linear[:, :2] / \
+                torch.norm(self.local_relative_linear[:, :2])
+        elif self.cfg.env.command_type == "6dof":
             self.commands = torch.cat([
                 self.local_relative_linear[:, :2],  # relative x, y
                 self.trajectories[env_ids, self.curr_pose_index[env_ids], 2:-1],  # z, roll, pitch: in real application, it is hard to access the relative z, roll, pitch
                 self.local_relative_rotation[:, 2:]  # relative yaw
             ], axis=-1)
+        else:
+            raise ValueError("Command type not recognised. Allowed types are [xy, front, 6dof]")
 
         # push robots
         self._call_train_eval(self._push_robots, torch.arange(self.num_envs, device=self.device))

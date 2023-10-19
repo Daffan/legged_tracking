@@ -40,13 +40,13 @@ def train_go1(headless=True):
     Cfg.env.observe_heights = True
     Cfg.env.num_envs = 400
     
-    command_xy_only = True
-    if command_xy_only:
-        Cfg.env.command_xy_only = True
+    command_type = args.command_type  # ["xy, "6dof", "xy_norm"]
+    if command_type in ["xy", "xy_norm"]:
+        Cfg.env.command_type = command_type
         Cfg.env.num_observations = 261 + int(args.timestep_in_obs)
         Cfg.env.num_scalar_observations = 261 + int(args.timestep_in_obs)
     else:
-        Cfg.env.command_xy_only = False
+        Cfg.env.command_type = command_type
         Cfg.env.num_observations = 265 + 1 # 507  (consider height meaurement only at front)
         Cfg.env.num_scalar_observations = 265 + 1  # 507
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
@@ -63,7 +63,7 @@ def train_go1(headless=True):
     # asset
     # change to not terminate on, but just penalize base contact, 
     Cfg.asset.penalize_contacts_on = ["thigh", "calf", "base"]
-    Cfg.asset.terminate_after_contacts_on = ["base"]
+    Cfg.asset.terminate_after_contacts_on = []
 
     # rewards
     Cfg.rewards.T_reach = 0
@@ -113,16 +113,27 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_x = 0.9
         Cfg.terrain.terrain_ratio_y = 0.25
         Cfg.terrain.ceiling_height = 0.8
+    elif args.terrain == "test_3":
+        Cfg.terrain.num_cols = 1
+        Cfg.terrain.num_rows = 1
+        Cfg.terrain.terrain_type = "test_env_3"
+        Cfg.terrain.horizontal_scale = 0.01
+        Cfg.terrain.terrain_length = 4.0 * 8
+        Cfg.terrain.terrain_width = 2.0
+        Cfg.terrain.terrain_ratio_x = 0.9
+        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.ceiling_height = 0.8
 
+    if Cfg.terrain.horizontal_scale == 0.01:
         Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)
         Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 31)
         Cfg.env.measure_front_half = False
-        if command_xy_only:
-            Cfg.env.command_xy_only = True
+        if command_type in ["xy", "xy_norm"]:
+            Cfg.env.command_type = command_type
             Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 - 4
             Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 - 4
         else:
-            Cfg.env.command_xy_only = False
+            Cfg.env.command_type = command_type
             Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 + 4
             Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 + 4
 
@@ -188,7 +199,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--terrain", default="pyramid", choices=["pyramid", "plane", "test_1", "test_2"])
+    parser.add_argument("--terrain", default="pyramid", choices=["pyramid", "plane", "test_1", "test_2", "test_3"])
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--name", type=str, default="e2e")
@@ -207,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument("--rotate_camera", action="store_true")
     parser.add_argument("--camera_zero", action="store_true")
     parser.add_argument("--device", default=0, type=int)
+    parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
 
     args = parser.parse_args()
 
