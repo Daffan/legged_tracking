@@ -76,7 +76,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.linear_vel = -1.0  # penalize large linear velocity > 0.7 m/s
-    Cfg.reward_scales.reaching_yaw_abs = -0.1
+    Cfg.reward_scales.reaching_yaw_abs = -0.0
     Cfg.reward_scales.reach_goal_t = 0.0  # 100
     Cfg.reward_scales.reach_goal = 0.0  # 100
     # Cfg.reward_scales.reaching_z = -5.0
@@ -110,7 +110,7 @@ def train_go1(headless=True):
         Cfg.terrain.horizontal_scale = 0.01
         Cfg.terrain.terrain_length = 2.0
         Cfg.terrain.terrain_width = 0.4
-        Cfg.terrain.terrain_ratio_x = 0.8
+        Cfg.terrain.terrain_ratio_x = 1.0
         Cfg.terrain.terrain_ratio_y = 1.0
 
         Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)

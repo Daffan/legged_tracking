@@ -20,7 +20,8 @@ from tqdm import tqdm
 # LOAD_PATH = "wandb/run-20230914_173527-luqqe6t6/files"
 # LOAD_PATH = "wandb/run-20230915_062051-30d5ikhi/files"
 # LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
-LOAD_PATH = "wandb/run-20231016_233057-wn7jngb6/files"
+# LOAD_PATH = "wandb/run-20231016_233057-wn7jngb6/files"
+LOAD_PATH = "wandb/run-20231018_003237-rsfriafk/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -140,7 +141,7 @@ def play_go1(headless=True):
     env.start_recording()
 
     # num_eval_steps = 2005
-    num_eval_steps = 1001
+    num_eval_steps = 1005
 
     measured_x_vels = np.zeros(num_eval_steps)
     measured_rolls = np.zeros(num_eval_steps)

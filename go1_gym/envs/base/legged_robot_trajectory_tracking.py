@@ -71,7 +71,7 @@ class LeggedRobot(BaseTask):
         self.prev_base_pos = self.base_pos.clone()
         self.prev_base_quat = self.base_quat.clone()
         self.prev_base_lin_vel = self.base_lin_vel.clone()
-        self.prev_foot_velocities = self.foot_velocities.clone()
+        # self.prev_foot_velocities = self.foot_velocities.clone()
         self.render_gui()
 
         for _ in range(self.cfg.control.decimation):
@@ -112,10 +112,10 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[::self.num_actor][:self.num_envs, 10:13])
         self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13
+        """ self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13
                                                           )[:, self.feet_indices, 7:10]
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
-                              0:3]
+                              0:3] """
 
         self._post_physics_step_callback()
 
@@ -989,17 +989,29 @@ class LeggedRobot(BaseTask):
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32 * self.num_actor), len(env_ids_int32))
         
-        self.root_states[self.wall_1_indices][env_ids] = self.wall_1_init_states
+        self.root_states[self.wall_1_indices][env_ids] = self.wall_1_init_states[env_ids]
         self.gym.set_actor_root_state_tensor_indexed(
             self.sim,
             gymtorch.unwrap_tensor(self.root_states),
             gymtorch.unwrap_tensor(self.wall_1_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
 
-        self.root_states[self.wall_2_indices][env_ids] = self.wall_2_init_states
+        self.root_states[self.wall_2_indices][env_ids] = self.wall_2_init_states[env_ids]
         self.gym.set_actor_root_state_tensor_indexed(
             self.sim,
             gymtorch.unwrap_tensor(self.root_states),
             gymtorch.unwrap_tensor(self.wall_2_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
+        
+        self.root_states[self.wall_3_indices][env_ids] = self.wall_3_init_states[env_ids]
+        self.gym.set_actor_root_state_tensor_indexed(
+            self.sim,
+            gymtorch.unwrap_tensor(self.root_states),
+            gymtorch.unwrap_tensor(self.wall_3_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
+
+        self.root_states[self.wall_4_indices][env_ids] = self.wall_4_init_states[env_ids]
+        self.gym.set_actor_root_state_tensor_indexed(
+            self.sim,
+            gymtorch.unwrap_tensor(self.root_states),
+            gymtorch.unwrap_tensor(self.wall_4_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
 
         if cfg.env.record_video and 0 in env_ids:
             if self.complete_video_frames is None:
@@ -1141,13 +1153,13 @@ class LeggedRobot(BaseTask):
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[::self.num_actor][:self.num_envs, 3:7]
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_state)
-        self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13)[:,
+        """ self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13)[:,
                                self.feet_indices,
                                7:10]
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
-                              0:3] - self.base_pos
+                              0:3] - self.base_pos """
         self.prev_base_pos = self.base_pos.clone()
-        self.prev_foot_velocities = self.foot_velocities.clone()
+        # self.prev_foot_velocities = self.foot_velocities.clone()
 
         self.lag_buffer = [torch.zeros_like(self.dof_pos) for i in range(self.cfg.domain_rand.lag_timesteps+1)]
 
@@ -1281,8 +1293,12 @@ class LeggedRobot(BaseTask):
 
         self.wall_1_indices = torch.arange(self.num_envs).to(self.device) + 1
         self.wall_2_indices = torch.arange(self.num_envs).to(self.device) + 2
+        self.wall_3_indices = torch.arange(self.num_envs).to(self.device) + 3
+        self.wall_4_indices = torch.arange(self.num_envs).to(self.device) + 4
         self.wall_1_init_states = self.root_states[self.wall_1_indices].clone()
         self.wall_2_init_states = self.root_states[self.wall_2_indices].clone()
+        self.wall_3_init_states = self.root_states[self.wall_3_indices].clone()
+        self.wall_4_init_states = self.root_states[self.wall_4_indices].clone()
 
     def _init_custom_buffers__(self):
         # domain randomization properties
@@ -1455,6 +1471,7 @@ class LeggedRobot(BaseTask):
         terrain_length = self.cfg.terrain.terrain_length
         terrain_width = self.cfg.terrain.terrain_width
         v_wall_asset = self.gym.create_box(self.sim, terrain_length, self.cfg.terrain.horizontal_scale * 10, 0.4, asset_options)
+        h_wall_asset = self.gym.create_box(self.sim, self.cfg.terrain.horizontal_scale * 10, terrain_width, 0.4, asset_options)
 
         v_wall_dof_props = self.gym.get_asset_dof_properties(v_wall_asset)
         self.num_v_wall_dofs = self.gym.get_asset_dof_count(v_wall_asset)
@@ -1528,31 +1545,29 @@ class LeggedRobot(BaseTask):
                 pass; pos[1] += (terrain_width/2. + self.cfg.terrain.horizontal_scale * 5); pos[2] += 0.2
                 wall_pose.p = gymapi.Vec3(*pos)
                 v_wall_actor = self.gym.create_actor(env_handle, v_wall_asset, wall_pose, "wall_left", i, 2, 0)
-                self.gym.set_actor_dof_properties(env_handle, v_wall_actor, v_wall_dof_props)
 
                 pos = env_origin.copy()
                 pass; pos[1] -= (terrain_width/2. + self.cfg.terrain.horizontal_scale * 5); pos[2] += 0.2
                 wall_pose.p = gymapi.Vec3(*pos)
                 v_wall_actor = self.gym.create_actor(env_handle, v_wall_asset, wall_pose, "wall_right", i, 2, 0)
-                self.gym.set_actor_dof_properties(env_handle, v_wall_actor, v_wall_dof_props)
 
-                """ pos = env_origin.copy()
-                pos[0] -= tunnel_length/2.; pass; pos[2] += 0.2
+                pos = env_origin.copy()
+                pos[0] -= terrain_length/2.; pass; pos[2] += 0.2
                 wall_pose.p = gymapi.Vec3(*pos)
                 wall_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.pi * 0.5)
                 self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_back", i, 0, 0)
 
                 pos = env_origin.copy()
-                pos[0] += tunnel_length/2.; pass; pos[2] += 0.2
+                pos[0] += terrain_length/2.; pass; pos[2] += 0.2
                 wall_pose.p = gymapi.Vec3(*pos)
                 wall_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.pi * 0.5)
                 self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_front", i, 0, 0)
-                """
+                
                 # self.num_actor += 2
 
             # adding arrow to visualize the goal position
             arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
-            self.num_actor = 4
+            self.num_actor = 6
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
 
