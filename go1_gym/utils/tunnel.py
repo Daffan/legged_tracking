@@ -273,8 +273,8 @@ def test_env_2(terrain, top=True):
 
     if top:
         offset_y = 0.08
-        height_max, height_min = 0.30, 0.30
-        lw_low, lw_high = 0.05, 0.05
+        height_max, height_min = 0.50, 0.50
+        lw_low, lw_high = 0.1, 0.1
     else:
         offset_y = -0.08
         height_max, height_min = 0.2, 0.2
@@ -308,9 +308,9 @@ def test_env_2(terrain, top=True):
     points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
     height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
     
-    if top:
-        height_field_raw[0, :] = 0.5
-        height_field_raw[-1, :] = 0.5
+    # if top:
+    #     height_field_raw[0, :] = 0.5
+    #     height_field_raw[-1, :] = 0.5
 
     terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
     

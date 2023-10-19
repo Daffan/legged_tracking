@@ -189,6 +189,24 @@ class LeggedRobot(BaseTask):
             reached_buf = torch.logical_and(self.reached_buf, self.episode_length_buf > self.cfg.rewards.T_reach)
             self.reset_buf = torch.logical_or(reached_buf, self.reset_buf)
 
+        rotation_tan = -(torch.norm(self.projected_gravity[:, :2], dim=1) / self.projected_gravity[:, 2])
+        large_z = self.root_states[::self.num_actor][:, 2] > 0.5
+        small_z = self.root_states[::self.num_actor][:, 2] < 0.15
+
+        # import ipdb; ipdb.set_trace()
+        # import time; time.sleep(0.5)
+        # print(rotation_tan)
+        # print(self.root_states[::self.num_actor][:, 2])
+        # print("\n\n")
+        self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan > 2.0)
+        self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan < 0.0)
+        self.reset_buf = torch.logical_or(self.reset_buf, large_z)
+        self.reset_buf = torch.logical_or(self.reset_buf, small_z)
+
+        # if self.reset_buf.any():
+        #     print(self.reset_buf)
+        # import ipdb; ipdb.set_trace()
+
     def reset_idx(self, env_ids):
         """ Reset some environments.
             Calls self._reset_dofs(env_ids), self._reset_root_states(env_ids), and self._resample_commands(env_ids) and
@@ -988,7 +1006,7 @@ class LeggedRobot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32 * self.num_actor), len(env_ids_int32))
-        
+        """ 
         self.root_states[self.wall_1_indices][env_ids] = self.wall_1_init_states[env_ids]
         self.gym.set_actor_root_state_tensor_indexed(
             self.sim,
@@ -1011,7 +1029,8 @@ class LeggedRobot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(
             self.sim,
             gymtorch.unwrap_tensor(self.root_states),
-            gymtorch.unwrap_tensor(self.wall_4_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
+            gymtorch.unwrap_tensor(self.wall_4_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32)) 
+        """
 
         if cfg.env.record_video and 0 in env_ids:
             if self.complete_video_frames is None:
@@ -1291,10 +1310,10 @@ class LeggedRobot(BaseTask):
             self.joint_vel_last_last = torch.zeros((self.num_envs, 12), device=self.device)
             self.joint_vel_last = torch.zeros((self.num_envs, 12), device=self.device)
 
-        self.wall_1_indices = torch.arange(self.num_envs).to(self.device) + 1
-        self.wall_2_indices = torch.arange(self.num_envs).to(self.device) + 2
-        self.wall_3_indices = torch.arange(self.num_envs).to(self.device) + 3
-        self.wall_4_indices = torch.arange(self.num_envs).to(self.device) + 4
+        self.wall_1_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 1
+        self.wall_2_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 2
+        self.wall_3_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 3
+        self.wall_4_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 4
         self.wall_1_init_states = self.root_states[self.wall_1_indices].clone()
         self.wall_2_init_states = self.root_states[self.wall_2_indices].clone()
         self.wall_3_init_states = self.root_states[self.wall_3_indices].clone()
@@ -1463,20 +1482,16 @@ class LeggedRobot(BaseTask):
         arrow_asset = self.gym.load_asset(self.sim, arrow_asset_root, arrow_asset_file, asset_options)
 
         asset_options = gymapi.AssetOptions()
-        asset_options.fix_base_link = False
+        asset_options.fix_base_link = True
         asset_options.disable_gravity = False
         asset_options.armature = 0.005
-        asset_options.density = 100000.0
+        # asset_options.density = 100000.0
         asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
-        terrain_length = self.cfg.terrain.terrain_length
-        terrain_width = self.cfg.terrain.terrain_width
-        v_wall_asset = self.gym.create_box(self.sim, terrain_length, self.cfg.terrain.horizontal_scale * 10, 0.4, asset_options)
-        h_wall_asset = self.gym.create_box(self.sim, self.cfg.terrain.horizontal_scale * 10, terrain_width, 0.4, asset_options)
-
-        v_wall_dof_props = self.gym.get_asset_dof_properties(v_wall_asset)
-        self.num_v_wall_dofs = self.gym.get_asset_dof_count(v_wall_asset)
-        for i in range(self.num_v_wall_dofs):
-            v_wall_dof_props['damping'][i] = 10.0
+        terrain_length = self.cfg.terrain.terrain_length * self.cfg.terrain.terrain_ratio_x
+        terrain_width = self.cfg.terrain.terrain_width * self.cfg.terrain.terrain_ratio_y
+        wall_thickness = 10
+        v_wall_asset = self.gym.create_box(self.sim, terrain_length, self.cfg.terrain.horizontal_scale * wall_thickness, 0.4, asset_options)
+        h_wall_asset = self.gym.create_box(self.sim, terrain_width, self.cfg.terrain.horizontal_scale * wall_thickness, 0.4, asset_options)
 
         # save body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(self.robot_asset)
@@ -1535,19 +1550,19 @@ class LeggedRobot(BaseTask):
 
             if self.cfg.terrain.mesh_type != "plane":
                 env_origin = np.array([
-                    (self.grid_r[i].item() + 0.5) * terrain_length,
-                    (self.grid_c[i].item() + 0.5) * terrain_width - self.cfg.terrain.horizontal_scale / 2.0,
+                    (self.grid_r[i].item() + 0.5) * terrain_length / self.cfg.terrain.terrain_ratio_x,
+                    (self.grid_c[i].item() + 0.5) * terrain_width / self.cfg.terrain.terrain_ratio_y - self.cfg.terrain.horizontal_scale / 2.0,
                     0.0
                 ])
                 wall_pose = gymapi.Transform()
 
                 pos = env_origin.copy()
-                pass; pos[1] += (terrain_width/2. + self.cfg.terrain.horizontal_scale * 5); pos[2] += 0.2
+                pass; pos[1] += (terrain_width/2. + self.cfg.terrain.horizontal_scale * wall_thickness / 2); pos[2] += 0.2
                 wall_pose.p = gymapi.Vec3(*pos)
                 v_wall_actor = self.gym.create_actor(env_handle, v_wall_asset, wall_pose, "wall_left", i, 2, 0)
 
                 pos = env_origin.copy()
-                pass; pos[1] -= (terrain_width/2. + self.cfg.terrain.horizontal_scale * 5); pos[2] += 0.2
+                pass; pos[1] -= (terrain_width/2. + self.cfg.terrain.horizontal_scale * wall_thickness / 2); pos[2] += 0.2
                 wall_pose.p = gymapi.Vec3(*pos)
                 v_wall_actor = self.gym.create_actor(env_handle, v_wall_asset, wall_pose, "wall_right", i, 2, 0)
 

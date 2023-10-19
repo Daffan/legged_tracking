@@ -21,7 +21,7 @@ from tqdm import tqdm
 # LOAD_PATH = "wandb/run-20230915_062051-30d5ikhi/files"
 # LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
 # LOAD_PATH = "wandb/run-20231016_233057-wn7jngb6/files"
-LOAD_PATH = "wandb/run-20231018_003237-rsfriafk/files"
+LOAD_PATH = "wandb/run-20231018_121654-bliqt187/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -42,7 +42,7 @@ from go1_gym_learn.ppo_cse_cnn import ActorCritic, AC_Args
 import os
 
 def load_policy(logdir, env, device='cuda:0'):
-    AC_Args.use_cnn = False
+    AC_Args.use_cnn = True
     AC_Args.use_gru = False
     actor_critic = ActorCritic(env.num_obs,
                                 env.num_privileged_obs,
@@ -96,20 +96,26 @@ def load_env(logdir, headless=False):
     Cfg.domain_rand.randomize_com_displacement = False
 
     Cfg.env.num_recording_envs = 1
-    Cfg.env.num_envs = 1
+    Cfg.env.num_envs = 9
     Cfg.env.look_from_back = True
-    Cfg.terrain.num_rows = 1
-    Cfg.terrain.num_cols = 1
+    Cfg.terrain.num_rows = 3
+    Cfg.terrain.num_cols = 3    
     Cfg.terrain.border_size = 0
     Cfg.terrain.center_robots = True
     Cfg.terrain.center_span = 1
     Cfg.terrain.teleport_robots = True
 
+    Cfg.terrain.terrain_length = 4.0
+    Cfg.terrain.terrain_width = 2.0
+    Cfg.terrain.terrain_ratio_x = 0.9
+    Cfg.terrain.terrain_ratio_y = 0.25
+    Cfg.terrain.ceiling_height = 0.8
+
     Cfg.domain_rand.lag_timesteps = 6
     Cfg.domain_rand.randomize_lag_timesteps = True
     Cfg.control.control_type = "actuator_net"
 
-    Cfg.env.viewer_look_at_robot = True
+    Cfg.env.viewer_look_at_robot = False
 
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
 
@@ -163,8 +169,8 @@ def play_go1(headless=True):
         measured_pitchs[i] = env.base_rotation[0, 1]
         joint_positions[i] = env.dof_pos[0, :].cpu()
 
-        if done.any():
-            break
+        # if done.any():
+        #     break
 
     frames = env.get_complete_frames()
 

@@ -38,7 +38,7 @@ def train_go1(headless=True):
     config_go1(Cfg)
     # observation space
     Cfg.env.observe_heights = True
-    Cfg.env.num_envs = 4000
+    Cfg.env.num_envs = 400
     
     command_xy_only = True
     if command_xy_only:
@@ -63,7 +63,7 @@ def train_go1(headless=True):
     # asset
     # change to not terminate on, but just penalize base contact, 
     Cfg.asset.penalize_contacts_on = ["thigh", "calf", "base"]
-    Cfg.asset.terminate_after_contacts_on = []
+    Cfg.asset.terminate_after_contacts_on = ["base"]
 
     # rewards
     Cfg.rewards.T_reach = 0
@@ -108,10 +108,11 @@ def train_go1(headless=True):
     elif args.terrain == "test_2":
         Cfg.terrain.terrain_type = "test_env_2"
         Cfg.terrain.horizontal_scale = 0.01
-        Cfg.terrain.terrain_length = 2.0
-        Cfg.terrain.terrain_width = 0.4
-        Cfg.terrain.terrain_ratio_x = 1.0
-        Cfg.terrain.terrain_ratio_y = 1.0
+        Cfg.terrain.terrain_length = 4.0
+        Cfg.terrain.terrain_width = 2.0
+        Cfg.terrain.terrain_ratio_x = 0.9
+        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.ceiling_height = 0.8
 
         Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)
         Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 31)
