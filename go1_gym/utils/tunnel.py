@@ -57,6 +57,7 @@ class Terrain:
         self.horizontal_scale = cfg.horizontal_scale
         self.vertical_scale = cfg.vertical_scale
         
+        self.start_loc = 0.275
         self.num_sub_terrains = cfg.num_rows * cfg.num_cols
         self.env_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
@@ -167,6 +168,7 @@ class Terrain:
             test_env_2(terrain, top=top)
         elif terrain_type == "test_env_3":
             test_env_3(terrain, top=top)
+            self.start_loc = 0.42
         else:
             raise ValueError
 
@@ -199,7 +201,7 @@ class Terrain:
         )
         self.terrain_origins[i, j] = [(start_x) * self.horizontal_scale, (start_y) * self.horizontal_scale, 0]
 
-        env_origin_x = (i + 0.5 - 0.275) * self.env_length  # an offset from the center
+        env_origin_x = (i + 0.5 - self.start_loc) * self.env_length  # an offset from the center
         terrain_origin_x = i * self.env_length
         terrain_origin_y = j * self.env_width
         env_origin_y = (j + 0.5) * self.env_width
@@ -282,11 +284,12 @@ def test_env_3(terrain, top=True):
         height_max, height_min = 0.2, 0.2
         lw_low, lw_high = 0.05, 0.05
 
-    mean_x = np.zeros(8)
+    mean_x = np.linspace(-w/2, w/2, 10)[1:-1]
     mean_y = np.zeros(1)
     mean_x, mean_y = np.meshgrid(mean_x, mean_y)
     mean_y += offset_y
     mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
+    # import ipdb; ipdb.set_trace()
 
     height_field_raw = np.zeros((pixel_x, pixel_y))
     means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
