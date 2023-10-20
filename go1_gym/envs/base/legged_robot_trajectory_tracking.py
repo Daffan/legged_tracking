@@ -198,8 +198,8 @@ class LeggedRobot(BaseTask):
         # print(rotation_tan)
         # print(self.root_states[::self.num_actor][:, 2])
         # print("\n\n")
-        self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan > 2.0)
-        self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan < 0.0)
+        # self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan > 2.0)
+        self.reset_buf = torch.logical_or(self.reset_buf, self.projected_gravity[:, 2] > 0.0)
         self.reset_buf = torch.logical_or(self.reset_buf, large_z)
         self.reset_buf = torch.logical_or(self.reset_buf, small_z)
 

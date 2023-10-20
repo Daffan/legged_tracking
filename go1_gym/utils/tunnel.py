@@ -168,7 +168,7 @@ class Terrain:
             test_env_2(terrain, top=top)
         elif terrain_type == "test_env_3":
             test_env_3(terrain, top=top)
-            self.start_loc = 0.42
+            self.start_loc = 0.40
         else:
             raise ValueError
 
