@@ -1187,8 +1187,6 @@ class LeggedRobot(BaseTask):
 
         self.lag_buffer = [torch.zeros_like(self.dof_pos) for i in range(self.cfg.domain_rand.lag_timesteps+1)]
 
-        # self.contact_forces = gymtorch.wrap_tensor(net_contact_forces)[:self.num_envs * self.num_bodies, :].view(self.num_envs, -1,
-        #                                                                     3)  # shape: num_envs, num_bodies, xyz axis
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         # initialize some data used later on
         self.common_step_counter = 0
@@ -1552,6 +1550,7 @@ class LeggedRobot(BaseTask):
             body_props = self.gym.get_actor_rigid_body_properties(env_handle, anymal_handle)
             body_props = self._process_rigid_body_props(body_props, i)
             self.gym.set_actor_rigid_body_properties(env_handle, anymal_handle, body_props, recomputeInertia=True)
+            self.num_actor = 1
 
             if self.cfg.terrain.mesh_type != "plane":
                 env_origin = np.array([
@@ -1583,11 +1582,11 @@ class LeggedRobot(BaseTask):
                 wall_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.pi * 0.5)
                 self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_front", i, 0, 0)
                 
-                # self.num_actor += 2
+                self.num_actor += 4
 
             # adding arrow to visualize the goal position
             arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
-            self.num_actor = 6
+            self.num_actor += 1
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
 

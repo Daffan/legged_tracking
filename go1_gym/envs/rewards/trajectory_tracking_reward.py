@@ -105,6 +105,26 @@ class TrajectoryTrackingRewards:
     def _reward_linear_vel(self):
         return torch.norm(self.env.base_lin_vel[:, :3], dim=1) > 0.7
 
+    def _reward_lin_vel_z(self):
+        # Penalize z axis base linear velocity
+        return torch.square(self.env.base_lin_vel[:, 2])
+    
+    def _reward_ang_vel_xy(self):
+        # Penalize xy axes base angular velocity
+        return torch.sum(torch.square(self.env.base_ang_vel[:, :2]), dim=1)
+
+    def _reward_feet_air_time(self):
+        # Reward long steps
+        # Need to filter the contacts because the contact reporting of PhysX is unreliable on meshes
+        contact = self.env.contact_forces[:, self.env.feet_indices, 2] > 1.
+        contact_filt = torch.logical_or(contact, self.env.last_contacts) 
+        self.env.last_contacts = contact
+        first_contact = (self.env.feet_air_time > 0.) * contact_filt
+        self.env.feet_air_time += self.env.dt
+        rew_airTime = torch.sum((self.env.feet_air_time - 0.5) * first_contact, dim=1) # reward only on first contact with the ground
+        # rew_airTime *= torch.norm(self.commands[:, :2], dim=1) > 0.1 #no reward for zero command
+        self.env.feet_air_time *= ~contact_filt
+        return rew_airTime
     
     # ------------ reward functions (trajectory tracking) ----------------
     def _reward_reaching_linear_vel(self):

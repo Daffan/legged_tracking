@@ -284,7 +284,7 @@ def test_env_3(terrain, top=True):
         height_max, height_min = 0.2, 0.2
         lw_low, lw_high = 0.05, 0.05
 
-    mean_x = np.linspace(-w/2, w/2, 10)[1:-1]
+    mean_x = np.linspace(-w/2, w/2, 8)[1:-1]
     mean_y = np.zeros(1)
     mean_x, mean_y = np.meshgrid(mean_x, mean_y)
     mean_y += offset_y

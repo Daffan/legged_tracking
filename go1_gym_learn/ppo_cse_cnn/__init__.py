@@ -275,6 +275,7 @@ class Runner:
 
             if it % self.runner_args.save_interval == 0:
                 # with logger.Sync():
+                print("saved")
                 if log_wandb:
                     save_path = os.path.join(wandb.run.dir, "checkpoints")
                 else:

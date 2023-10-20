@@ -38,7 +38,7 @@ def train_go1(headless=True):
     config_go1(Cfg)
     # observation space
     Cfg.env.observe_heights = True
-    Cfg.env.num_envs = 400
+    Cfg.env.num_envs = 4000
     
     command_type = args.command_type  # ["xy, "6dof", "xy_norm"]
     if command_type in ["xy", "xy_norm"]:
@@ -75,7 +75,7 @@ def train_go1(headless=True):
     # Cfg.reward_scales.stalling = args.r_stalling
     Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
-    Cfg.reward_scales.linear_vel = -1.0  # penalize large linear velocity > 0.7 m/s
+    Cfg.reward_scales.linear_vel = 0.0  # penalize large linear velocity > 0.7 m/s
     Cfg.reward_scales.reaching_yaw_abs = -0.0
     Cfg.reward_scales.reach_goal_t = 0.0  # 100
     Cfg.reward_scales.reach_goal = 0.0  # 100
@@ -83,12 +83,18 @@ def train_go1(headless=True):
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
+    Cfg.reward_scales.reaching_linear_vel = 1.0
+    Cfg.rewards.target_lin_vel = 0.5
+    Cfg.rewards.lin_vel_z = -2.0
+    Cfg.rewards.ang_vel_xy = -0.05
+
     penalty_scaler = args.penalty_scaler
     Cfg.reward_scales.dof_acc = -2.5e-7 * penalty_scaler
     Cfg.reward_scales.torques = -1e-5 * penalty_scaler
     Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
     Cfg.reward_scales.collision = -1.0 * penalty_scaler
-    Cfg.reward_scales.action_rate = -0.05 * penalty_scaler
+    Cfg.reward_scales.action_rate = -0.01 * penalty_scaler
+    Cfg.reward_scales.feet_air_time = 1.0 * penalty_scaler
     Cfg.reward_scales.orientation = 0.0  # -5.0
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.base_height = 0.0
@@ -114,11 +120,11 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_y = 0.25
         Cfg.terrain.ceiling_height = 0.8
     elif args.terrain == "test_3":
-        Cfg.terrain.num_cols = 1
+        Cfg.terrain.num_cols = 20
         Cfg.terrain.num_rows = 1
         Cfg.terrain.terrain_type = "test_env_3"
         Cfg.terrain.horizontal_scale = 0.01
-        Cfg.terrain.terrain_length = 4.0 * 8
+        Cfg.terrain.terrain_length = 4.0 * 4
         Cfg.terrain.terrain_width = 2.0
         Cfg.terrain.terrain_ratio_x = 0.9
         Cfg.terrain.terrain_ratio_y = 0.25
@@ -189,7 +195,7 @@ def train_go1(headless=True):
     print(1000 * 4000 / (time.time() - start)) """
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=1000000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
+    runner.learn(num_learning_iterations=500, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
