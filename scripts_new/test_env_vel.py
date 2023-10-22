@@ -53,7 +53,7 @@ def train_go1(headless=True):
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
     Cfg.env.num_observation_history = args.num_history
     Cfg.env.look_from_back = True
-    Cfg.env.terminate_end_of_trajectory = True
+    Cfg.env.terminate_end_of_trajectory = False
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = args.rotate_camera
     Cfg.env.camera_zero = args.camera_zero
@@ -94,7 +94,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
     Cfg.reward_scales.collision = -1.0 * penalty_scaler
     Cfg.reward_scales.action_rate = -0.01 * penalty_scaler
-    Cfg.reward_scales.feet_air_time = 1.0 * penalty_scaler
+    # Cfg.reward_scales.feet_air_time = 1.0 * penalty_scaler
     Cfg.reward_scales.orientation = 0.0  # -5.0
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.base_height = 0.0
@@ -126,6 +126,39 @@ def train_go1(headless=True):
         Cfg.terrain.horizontal_scale = 0.01
         Cfg.terrain.terrain_length = 4.0 * 3
         Cfg.terrain.terrain_width = 2.0
+        Cfg.terrain.terrain_ratio_x = 0.9
+        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.ceiling_height = 0.8
+
+    elif args.terrain == "test_4":
+        Cfg.terrain.num_cols = 20
+        Cfg.terrain.num_rows = 1
+        Cfg.terrain.terrain_type = "test_env_4"
+        Cfg.terrain.horizontal_scale = 0.01
+        Cfg.terrain.terrain_length = 4.0 * 3
+        Cfg.terrain.terrain_width = 1.8
+        Cfg.terrain.terrain_ratio_x = 0.9
+        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.ceiling_height = 0.8
+
+    elif args.terrain == "test_5":
+        Cfg.terrain.num_cols = 20
+        Cfg.terrain.num_rows = 1
+        Cfg.terrain.terrain_type = "test_env_5"
+        Cfg.terrain.horizontal_scale = 0.01
+        Cfg.terrain.terrain_length = 4.0 * 3
+        Cfg.terrain.terrain_width = 1.8
+        Cfg.terrain.terrain_ratio_x = 0.9
+        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.ceiling_height = 0.8
+
+    elif args.terrain == "test_6":
+        Cfg.terrain.num_cols = 20
+        Cfg.terrain.num_rows = 20
+        Cfg.terrain.terrain_type = "test_env_6"
+        Cfg.terrain.horizontal_scale = 0.01
+        Cfg.terrain.terrain_length = 2.0
+        Cfg.terrain.terrain_width = 1.8
         Cfg.terrain.terrain_ratio_x = 0.9
         Cfg.terrain.terrain_ratio_y = 0.25
         Cfg.terrain.ceiling_height = 0.8
@@ -195,7 +228,7 @@ def train_go1(headless=True):
     print(1000 * 4000 / (time.time() - start)) """
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=500, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
+    runner.learn(num_learning_iterations=5000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -205,7 +238,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--terrain", default="pyramid", choices=["pyramid", "plane", "test_1", "test_2", "test_3"])
+    parser.add_argument("--terrain", default="pyramid", choices=["pyramid", "plane", "test_1", "test_2", "test_3", "test_4", "test_5", "test_6"])
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--name", type=str, default="e2e")
