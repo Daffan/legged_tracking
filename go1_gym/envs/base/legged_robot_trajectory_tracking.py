@@ -191,7 +191,7 @@ class LeggedRobot(BaseTask):
 
         rotation_tan = -(torch.norm(self.projected_gravity[:, :2], dim=1) / self.projected_gravity[:, 2])
         large_z = self.root_states[::self.num_actor][:, 2] > 0.5
-        small_z = self.root_states[::self.num_actor][:, 2] < 0.15
+        # small_z = self.root_states[::self.num_actor][:, 2] < 0.15
 
         # import ipdb; ipdb.set_trace()
         # import time; time.sleep(0.5)
@@ -201,7 +201,7 @@ class LeggedRobot(BaseTask):
         # self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan > 2.0)
         self.reset_buf = torch.logical_or(self.reset_buf, self.projected_gravity[:, 2] > 0.0)
         self.reset_buf = torch.logical_or(self.reset_buf, large_z)
-        self.reset_buf = torch.logical_or(self.reset_buf, small_z)
+        # self.reset_buf = torch.logical_or(self.reset_buf, small_z)
 
         # if self.reset_buf.any():
         #     print(self.reset_buf)

@@ -175,6 +175,9 @@ class Terrain:
         elif terrain_type == "test_env_5":
             test_env_5(terrain, top=top)
             self.start_loc = 0.40
+        elif terrain_type == "test_env_6":
+            test_env_6(terrain, top=top)
+            self.start_loc = 0.30
         else:
             raise ValueError
 
@@ -435,13 +438,13 @@ def test_env_6(terrain, top=True):
     l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
 
     if top:
-        offset_y = np.random.uniform(-0.2, 0.2, size=6)
-        offset_x = np.random.uniform(-0.1, 0.1, size=6)
-        height_max, height_min = 0.45, 0.65
+        offset_y = np.random.uniform(-0.2, 0.2, size=1)
+        offset_x = np.random.uniform(-0.1, 0.1, size=1)
+        height_max, height_min = 0.35, 0.65
         lw_low, lw_high = 0.1, 0.1
     else:
-        offset_y = np.random.uniform(-0.2, 0.2, size=6)
-        offset_x = np.random.uniform(-0.1, 0.1, size=6)
+        offset_y = np.random.uniform(-0.18, 0.18, size=1)
+        offset_x = np.random.uniform(-0.1, 0.1, size=1)
         height_max, height_min = 0.15, 0.25
         lw_low, lw_high = 0.05, 0.05
 
