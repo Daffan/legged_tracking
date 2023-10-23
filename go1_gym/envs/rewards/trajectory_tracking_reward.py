@@ -137,8 +137,13 @@ class TrajectoryTrackingRewards:
         target_linear_vel = target_linear_vel / (magnitude + EPSILON) * self.env.cfg.rewards.target_lin_vel
         # if in a distance range of 0.05, set the target to be 0
         target_linear_vel *= (magnitude > self.env.cfg.rewards.lin_reaching_criterion)
-        linear_vel_error = torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
-        return torch.exp(-linear_vel_error/self.env.cfg.rewards.tracking_sigma_lin)
+        if self.env.cfg.rewards.lin_vel_form == "exp":
+            linear_vel_error = torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
+            return torch.exp(-linear_vel_error/self.env.cfg.rewards.tracking_sigma_lin)
+        if self.env.cfg.rewards.lin_vel_form == "l1":
+            return torch.sum(torch.abs(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
+        if self.env.cfg.rewards.lin_vel_form == "l2":
+            return torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
     
     def _reward_reaching_z(self):
         return torch.square(self.env.relative_linear[:, 2])

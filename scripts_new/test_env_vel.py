@@ -73,7 +73,6 @@ def train_go1(headless=True):
     Cfg.rewards.use_terminal_body_height = False
 
     # Cfg.reward_scales.stalling = args.r_stalling
-    Cfg.reward_scales.reaching_linear_vel = 0
     Cfg.reward_scales.reaching_yaw = 0
     Cfg.reward_scales.linear_vel = 0.0  # penalize large linear velocity > 0.7 m/s
     Cfg.reward_scales.reaching_yaw_abs = -0.0
@@ -83,10 +82,11 @@ def train_go1(headless=True):
     Cfg.reward_scales.exploration = args.r_explore
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
-    Cfg.reward_scales.reaching_linear_vel = 1.0
+    Cfg.reward_scales.reaching_linear_vel = args.r_linear_vel
     Cfg.rewards.target_lin_vel = 0.5
     Cfg.rewards.lin_vel_z = -2.0
     Cfg.rewards.ang_vel_xy = -0.05
+    Cfg.rewards.lin_vel_form = args.lin_vel_form
 
     penalty_scaler = args.penalty_scaler
     Cfg.reward_scales.dof_acc = -2.5e-7 * penalty_scaler
@@ -259,6 +259,8 @@ if __name__ == '__main__':
     parser.add_argument("--camera_zero", action="store_true")
     parser.add_argument("--device", default=0, type=int)
     parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
+    parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp"])
+    parser.add_argument("--r_linear_vel", type=float, default=1.0)
 
     args = parser.parse_args()
 
