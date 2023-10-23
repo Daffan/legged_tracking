@@ -162,6 +162,7 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_x = 0.9
         Cfg.terrain.terrain_ratio_y = 0.25
         Cfg.terrain.ceiling_height = 0.8
+        Cfg.env.episode_length_s = 8.0
 
     if Cfg.terrain.horizontal_scale == 0.01:
         Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)
