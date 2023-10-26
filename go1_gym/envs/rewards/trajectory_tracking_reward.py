@@ -126,6 +126,9 @@ class TrajectoryTrackingRewards:
         self.env.feet_air_time *= ~contact_filt
         return rew_airTime
     
+    def _reward_survive(self):
+        return torch.ones_like(self.env.reset_buf).float()
+    
     # ------------ reward functions (trajectory tracking) ----------------
     def _reward_reaching_linear_vel(self):
         """ rewarding the linear velocity to be close to

@@ -72,10 +72,11 @@ class Terrain:
         self.tot_cols = int(cfg.num_cols * self.width_per_env_pixels)
 
         # Empty space by default has height points of 4 meters that does not block the robot
-        self.height_field_raw = np.ones((2, self.tot_rows , self.tot_cols), dtype=np.int16) * int(1. / cfg.vertical_scale)
+        self.height_field_raw = np.ones((2, self.tot_rows , self.tot_cols), dtype=np.int16) * int(1. / cfg.vertical_scale) * self.cfg.ceiling_height
+        self.height_field_raw[1, :, :] = 0.4 * int(1. / cfg.vertical_scale) # wall height
         self.height_field_env = []
-        self.height_samples_by_row_col = np.ones((cfg.num_rows, cfg.num_cols, 2, self.length_per_env_pixels, self.width_per_env_pixels))
-        self.height_samples_by_row_col[:, :, 1, :, :] = 0.5  # bottom 0, top 1
+        self.height_samples_by_row_col = np.zeros((cfg.num_rows, cfg.num_cols, 2, self.length_per_env_pixels, self.width_per_env_pixels))
+        # self.height_samples_by_row_col[:, :, 1, :, :] = 0.5  # bottom 0, top 1
 
         for k in range(self.num_sub_terrains):
             # Env coordinates in the world
