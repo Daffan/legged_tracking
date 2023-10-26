@@ -83,6 +83,7 @@ def train_go1(headless=True):
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
     Cfg.reward_scales.reaching_linear_vel = args.r_linear_vel
+    Cfg.reward_scales.survive = args.r_survive
     Cfg.rewards.target_lin_vel = 0.5
     Cfg.rewards.lin_vel_z = -2.0
     Cfg.rewards.ang_vel_xy = -0.05
@@ -164,6 +165,18 @@ def train_go1(headless=True):
         Cfg.terrain.ceiling_height = 0.8
         Cfg.env.episode_length_s = 8.0
 
+    elif args.terrain == "test_7":
+        Cfg.terrain.num_cols = 20
+        Cfg.terrain.num_rows = 20
+        Cfg.terrain.terrain_type = "test_env_7"
+        Cfg.terrain.horizontal_scale = 0.01
+        Cfg.terrain.terrain_length = 3.0
+        Cfg.terrain.terrain_width = 1.8
+        Cfg.terrain.terrain_ratio_x = 0.9
+        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.ceiling_height = 0.8
+        Cfg.env.episode_length_s = 8.0
+
     if Cfg.terrain.horizontal_scale == 0.01:
         Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 61)
         Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 31)
@@ -216,7 +229,12 @@ def train_go1(headless=True):
     env = TrajectoryTrackingEnv(sim_device=f"cuda:{gpu_id}", headless=args.headless, cfg=Cfg)
 
     if args.wandb:
-        wandb.init(project="go1_gym", config=vars(Cfg), name=args.name)
+        wandb.init(
+            project="go1_gym",
+            config=vars(Cfg),
+            name=args.name,
+            dir="/var/local/zifan/wandb/legged_tracking"
+        )
 
     env = HistoryWrapper(env)
 
@@ -239,7 +257,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--terrain", default="pyramid", choices=["pyramid", "plane", "test_1", "test_2", "test_3", "test_4", "test_5", "test_6"])
+    parser.add_argument("--terrain", default="pyramid")
     parser.add_argument("--random_target", action="store_true")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--name", type=str, default="e2e")
@@ -261,6 +279,7 @@ if __name__ == '__main__':
     parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
     parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp"])
     parser.add_argument("--r_linear_vel", type=float, default=1.0)
+    parser.add_argument("--r_survive", type=float, default=0.0)
 
     args = parser.parse_args()
 

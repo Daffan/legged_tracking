@@ -260,7 +260,7 @@ class Cfg(PrefixProto, cli=False):
         
         reward_container_name = "TrajectoryTrackingRewards"
         # parameters for reward functions
-        target_lin_vel = 0.25
+        target_lin_vel = 0.5
         lin_reaching_criterion = 0.01
         tracking_sigma_lin = 0.05
         target_ang_vel = np.pi / 2

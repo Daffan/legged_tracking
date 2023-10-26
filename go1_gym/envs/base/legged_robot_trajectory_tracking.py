@@ -1011,31 +1011,6 @@ class LeggedRobot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32 * self.num_actor), len(env_ids_int32))
-        """ 
-        self.root_states[self.wall_1_indices][env_ids] = self.wall_1_init_states[env_ids]
-        self.gym.set_actor_root_state_tensor_indexed(
-            self.sim,
-            gymtorch.unwrap_tensor(self.root_states),
-            gymtorch.unwrap_tensor(self.wall_1_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
-
-        self.root_states[self.wall_2_indices][env_ids] = self.wall_2_init_states[env_ids]
-        self.gym.set_actor_root_state_tensor_indexed(
-            self.sim,
-            gymtorch.unwrap_tensor(self.root_states),
-            gymtorch.unwrap_tensor(self.wall_2_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
-        
-        self.root_states[self.wall_3_indices][env_ids] = self.wall_3_init_states[env_ids]
-        self.gym.set_actor_root_state_tensor_indexed(
-            self.sim,
-            gymtorch.unwrap_tensor(self.root_states),
-            gymtorch.unwrap_tensor(self.wall_3_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32))
-
-        self.root_states[self.wall_4_indices][env_ids] = self.wall_4_init_states[env_ids]
-        self.gym.set_actor_root_state_tensor_indexed(
-            self.sim,
-            gymtorch.unwrap_tensor(self.root_states),
-            gymtorch.unwrap_tensor(self.wall_4_indices[env_ids].to(dtype=torch.int32)), len(env_ids_int32)) 
-        """
 
         if cfg.env.record_video and 0 in env_ids:
             if self.complete_video_frames is None:
@@ -1313,15 +1288,6 @@ class LeggedRobot(BaseTask):
             self.joint_vel_last_last = torch.zeros((self.num_envs, 12), device=self.device)
             self.joint_vel_last = torch.zeros((self.num_envs, 12), device=self.device)
 
-        self.wall_1_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 1
-        self.wall_2_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 2
-        self.wall_3_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 3
-        self.wall_4_indices = torch.arange(self.num_envs).to(self.device) * self.num_actor + 4
-        self.wall_1_init_states = self.root_states[self.wall_1_indices].clone()
-        self.wall_2_init_states = self.root_states[self.wall_2_indices].clone()
-        self.wall_3_init_states = self.root_states[self.wall_3_indices].clone()
-        self.wall_4_init_states = self.root_states[self.wall_4_indices].clone()
-
     def _init_custom_buffers__(self):
         # domain randomization properties
         self.friction_coeffs = self.default_friction * torch.ones(self.num_envs, 4, dtype=torch.float, device=self.device,
@@ -1552,7 +1518,7 @@ class LeggedRobot(BaseTask):
             self.gym.set_actor_rigid_body_properties(env_handle, anymal_handle, body_props, recomputeInertia=True)
             self.num_actor = 1
 
-            if self.cfg.terrain.mesh_type != "plane":
+            """ if self.cfg.terrain.mesh_type != "plane":
                 env_origin = np.array([
                     (self.grid_r[i].item() + 0.5) * terrain_length / self.cfg.terrain.terrain_ratio_x,
                     (self.grid_c[i].item() + 0.5) * terrain_width / self.cfg.terrain.terrain_ratio_y - self.cfg.terrain.horizontal_scale / 2.0,
@@ -1582,7 +1548,7 @@ class LeggedRobot(BaseTask):
                 wall_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.pi * 0.5)
                 self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_front", i, 0, 0)
                 
-                self.num_actor += 4
+                self.num_actor += 4 """
 
             # adding arrow to visualize the goal position
             arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
