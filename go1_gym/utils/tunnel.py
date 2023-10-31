@@ -37,6 +37,7 @@ from scipy import interpolate
 
 from isaacgym import terrain_utils
 from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
+from go1_gym.utils.tunnel_fn import TerrainFunctions
 try:
     from go1_gym.utils.planner import valid_checking
 except:
@@ -49,6 +50,8 @@ from functools import partial
 
 class Terrain:
     def __init__(self, cfg: Cfg.terrain, num_robots) -> None:
+        """ This terrain contains both top and bottom constraints
+        """
 
         self.cfg = cfg
         self.num_robots = num_robots
@@ -56,8 +59,8 @@ class Terrain:
         self.env_width = cfg.terrain_width
         self.horizontal_scale = cfg.horizontal_scale
         self.vertical_scale = cfg.vertical_scale
+        self.terrain_fn = getattr(TerrainFunctions, cfg.terrain_type)
         
-        self.start_loc = 0.275
         self.num_sub_terrains = cfg.num_rows * cfg.num_cols
         self.env_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.terrain_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
@@ -67,16 +70,18 @@ class Terrain:
         self.length_per_env_pixels = int(self.env_length / cfg.horizontal_scale)
         self.terrain_ratio_x = cfg.terrain_ratio_x  # terrain does not occupy full area of the env, default is set to 0.5
         self.terrain_ratio_y = cfg.terrain_ratio_y  # terrain does not occupy full area of the env, default is set to 0.5
+        self.start_loc = cfg.start_loc # 0.4 is 0.4 * env_length away from the center of the env
 
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels)
         self.tot_cols = int(cfg.num_cols * self.width_per_env_pixels)
 
-        # Empty space by default has height points of 4 meters that does not block the robot
+        # Set ceiling height to be self.cfg.ceiling_height
+        # and floor height to be 0.0
         self.height_field_raw = np.ones((2, self.tot_rows , self.tot_cols), dtype=np.int16) * int(1. / cfg.vertical_scale) * self.cfg.ceiling_height
-        self.height_field_raw[1, :, :] = 0.4 * int(1. / cfg.vertical_scale) # wall height
+        self.height_field_raw[1, :, :] = 0.0 * int(1. / cfg.vertical_scale)
         self.height_field_env = []
+        # this is accessed later to query the height map
         self.height_samples_by_row_col = np.zeros((cfg.num_rows, cfg.num_cols, 2, self.length_per_env_pixels, self.width_per_env_pixels))
-        # self.height_samples_by_row_col[:, :, 1, :, :] = 0.5  # bottom 0, top 1
 
         for k in range(self.num_sub_terrains):
             # Env coordinates in the world
@@ -89,15 +94,17 @@ class Terrain:
                 terrain_bottom = self.make_terrain(cfg.terrain_type, difficulty, k, top=False)
                 # flip the ceiling of the tunnel at the ceiling
                 terrain_top.height_field_raw = self.cfg.ceiling_height / self.vertical_scale - terrain_top.height_field_raw
+                # a_min=0.05 to make sure that the obstacles do not touch the ground
                 terrain_top.height_field_raw = np.clip(terrain_top.height_field_raw, a_max=None, a_min=0.05 / self.vertical_scale)
                 
                 elevation_map_top = terrain_top.height_field_raw.T * self.vertical_scale
                 elevation_map_bottom = terrain_bottom.height_field_raw.T * self.vertical_scale
                 elevation_map = np.stack([elevation_map_top, elevation_map_bottom])
 
-                if k == 0:
+                if k == 0:  # plot the first tunnel environment
                     visual_elevation_map(elevation_map, cfg)
 
+                # check if the tunnel is valid (only if ompl is installed)
                 start_state = np.array([-0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
                 goal_state = np.array([0.375 * self.env_length, 0, 0.27, 0, 0, 0, 1.0])
                 if cfg.valid_tunnel_only:
@@ -145,6 +152,7 @@ class Terrain:
             )
             # terrain.height_field_raw += int(1.0 / self.cfg.vertical_scale)
         elif terrain_type == "random_pyramid":
+            # some configs need to be passed to the terrain_fn
             if difficulty < 0.25:
                 d_num = 2
             elif difficulty < 0.625:
@@ -152,7 +160,7 @@ class Terrain:
             else:
                 d_num = 0
             cfg = self.cfg.top if top else self.cfg.bottom
-            random_pyramid(
+            self.terrain_fn(
                 terrain,
                 num_x=cfg.pyramid_num_x-d_num,
                 num_y=cfg.pyramid_num_y-d_num,
@@ -163,46 +171,22 @@ class Terrain:
                 height_min=cfg.pyramid_height_min,
                 height_max=cfg.pyramid_height_max,
             )
-        elif terrain_type == "test_env":
-            test_env(terrain, top=top)
-        elif terrain_type == "test_env_2":
-            test_env_2(terrain, top=top)
-        elif terrain_type == "test_env_3":
-            test_env_3(terrain, top=top)
-            self.start_loc = 0.40
-        elif terrain_type == "test_env_4":
-            test_env_4(terrain, top=top)
-            self.start_loc = 0.40
-        elif terrain_type == "test_env_5":
-            test_env_5(terrain, top=top)
-            self.start_loc = 0.40
-        elif terrain_type == "test_env_6":
-            test_env_6(terrain, top=top)
-            self.start_loc = 0.30
-        elif terrain_type == "test_env_7":
-            test_env_6(terrain, top=top)
-            self.start_loc = 0.30
         else:
-            raise ValueError
+            self.terrain_fn(terrain, top=top)
 
         return terrain
 
     def add_terrain_to_map(self, terrain_top, terrain_bottom, row, col):
         i = row
         j = col
-        #terrain.height_field_raw[0, :] = int(0.1 / self.vertical_scale)
-        #terrain.height_field_raw[-1, :] = int(0.1 / self.vertical_scale)
         # map coordinate system
         start_x = int(round((i + 0.5 - self.terrain_ratio_x/2.) * self.length_per_env_pixels, 4))
         end_x = int(round((i + 0.5 + self.terrain_ratio_x/2.) * self.length_per_env_pixels, 4))
         start_y = int((j + 0.5 - self.terrain_ratio_y/2.) * self.width_per_env_pixels)
         end_y = int((j + 0.5 + self.terrain_ratio_y/2.) * self.width_per_env_pixels)
         
-        try:
-            self.height_field_raw[0, start_x: end_x, start_y:end_y] = terrain_top.height_field_raw.T
-            self.height_field_raw[1, start_x: end_x, start_y:end_y] = terrain_bottom.height_field_raw.T
-        except:
-            import ipdb; ipdb.set_trace()
+        self.height_field_raw[0, start_x: end_x, start_y:end_y] = terrain_top.height_field_raw.T
+        self.height_field_raw[1, start_x: end_x, start_y:end_y] = terrain_bottom.height_field_raw.T
         
         self.height_field_env.append([terrain_top.height_field_raw, terrain_bottom.height_field_raw])
         self.height_samples_by_row_col[i, j, :] = (
@@ -218,16 +202,12 @@ class Terrain:
         terrain_origin_x = i * self.env_length
         terrain_origin_y = j * self.env_width
         env_origin_y = (j + 0.5) * self.env_width
-        x1 = int((self.env_length/2. - 1) / self.horizontal_scale)
-        x2 = int((self.env_length/2. + 1) / self.horizontal_scale)
-        y1 = int((self.env_width/2. - 1) / self.horizontal_scale)
-        y2 = int((self.env_width/2. + 1) / self.horizontal_scale)
         env_origin_z = 0.0 # np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
         self.all_terrain_origins[i, j] = [terrain_origin_x, terrain_origin_y, env_origin_z]
 
 
-from matplotlib import pyplot as plot
+from matplotlib import pyplot as plt
 
 def visual_elevation_map(elevation_map, cfg):
     hs = cfg.horizontal_scale
@@ -245,597 +225,3 @@ def visual_elevation_map(elevation_map, cfg):
     ax.set_box_aspect([ub - lb for lb, ub in (getattr(ax, f'get_{a}lim')() for a in 'xyz')])
 
     plt.show()
-
-def vec_plane_from_points(p1, p2, p3, xy):
-    # p1, p2, p3: (num_pyramid, 4, 3)
-    # xy: (px, py, 2)
-    px, py = xy.shape[:2]
-    xy = xy.reshape(-1, 2)
-
-    v1 = p3 - p1
-    v2 = p3 - p2
-
-    cp = np.cross(v1, v2)
-    a, b, c = cp[..., 0], cp[..., 1], cp[..., 2]
-
-    d = np.sum(cp * p3, axis=-1)
-
-    assert np.all(c != 0)
-    heights = np.clip((d/c)[..., None] - (a/c)[..., None]*xy[..., 0] - (b/c)[..., None]*xy[..., 1], 0, a_max=np.inf)
-    heights = np.min(heights, axis=1)
-    heights = np.max(heights, axis=0)
-    return heights.reshape(px, py)
-
-def plane_from_points(p1, p2, p3):
-    v1 = p3 - p1
-    v2 = p3 - p2
-
-    cp = np.cross(v1, v2)
-    a, b, c = cp
-
-    d = np.dot(cp, p3)
-
-    assert c != 0
-    return lambda x, y: np.clip(d/c - a/c*x - b/c*y, 0, a_max=np.inf)
-
-def pyramid_from_points(points):
-    """
-    points [np.ndarray]: in shape (4, 3, 3). 4 planes with each defined by 3 points in 3D space
-    """
-    return lambda x, y: np.stack([plane_from_points(*ps)(x, y) for ps in points]).min(0)
-
-def test_env_3(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    if top:
-        offset_y = 0.08
-        height_max, height_min = 0.50, 0.50
-        lw_low, lw_high = 0.1, 0.1
-    else:
-        offset_y = -0.08
-        height_max, height_min = 0.2, 0.2
-        lw_low, lw_high = 0.05, 0.05
-
-    mean_x = np.linspace(-w/2, w/2, 8)[1:-1]
-    mean_y = np.zeros(1)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += offset_y
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-    # import ipdb; ipdb.set_trace()
-
-    height_field_raw = np.zeros((pixel_x, pixel_y))
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    
-    # if top:
-    #     height_field_raw[0, :] = 0.5
-    #     height_field_raw[-1, :] = 0.5
-
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-def test_env_4(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    if top:
-        offset_y = 0.06
-        height_max, height_min = 0.60, 0.60
-        lw_low, lw_high = 0.1, 0.1
-    else:
-        offset_y = -0.08
-        height_max, height_min = 0.2, 0.2
-        lw_low, lw_high = 0.05, 0.05
-
-    mean_x = np.linspace(-w/2, w/2, 8)[1:-1]
-    mean_y = np.zeros(1)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += offset_y
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-    # import ipdb; ipdb.set_trace()
-
-    height_field_raw = np.zeros((pixel_x, pixel_y))
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    
-    # if top:
-    #     height_field_raw[0, :] = 0.5
-    #     height_field_raw[-1, :] = 0.5
-
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-def test_env_5(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    if top:
-        offset_y = np.random.uniform(-0.2, 0.2, size=6)
-        offset_x = np.random.uniform(-0.2, 0.2, size=6)
-        height_max, height_min = 0.50, 0.70
-        lw_low, lw_high = 0.1, 0.1
-    else:
-        offset_y = np.random.uniform(-0.2, 0.2, size=6)
-        offset_x = np.random.uniform(-0.2, 0.2, size=6)
-        height_max, height_min = 0.15, 0.25
-        lw_low, lw_high = 0.05, 0.05
-
-    mean_x = np.linspace(-w/2, w/2, 8)[1:-1]
-    mean_y = np.zeros(1)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += offset_y; mean_x += offset_x
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-    # import ipdb; ipdb.set_trace()
-
-    height_field_raw = np.zeros((pixel_x, pixel_y))
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    
-    # if top:
-    #     height_field_raw[0, :] = 0.5
-    #     height_field_raw[-1, :] = 0.5
-
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-
-def test_env_6(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    if top:
-        offset_y = np.random.uniform(-0.2, 0.2, size=1)
-        offset_x = np.random.uniform(-0.1, 0.1, size=1)
-        height_max, height_min = 0.35, 0.65
-        lw_low, lw_high = 0.1, 0.1
-    else:
-        offset_y = np.random.uniform(-0.18, 0.18, size=1)
-        offset_x = np.random.uniform(-0.1, 0.1, size=1)
-        height_max, height_min = 0.15, 0.25
-        lw_low, lw_high = 0.05, 0.05
-
-    mean_x = np.linspace(-w/2, w/2, 3)[1:-1]
-    mean_y = np.zeros(1)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += offset_y; mean_x += offset_x
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-    # import ipdb; ipdb.set_trace()
-
-    height_field_raw = np.zeros((pixel_x, pixel_y))
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    
-    if not top:
-        height_field_raw[0, :] = 0.4
-        height_field_raw[-1, :] = 0.4
-        height_field_raw[:, 0] = 0.4
-        height_field_raw[:, -1] = 0.4
-
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-def test_env_7(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    p = np.random.uniform()
-
-    if top:
-        offset_y = np.random.uniform(-0.2, 0.2, size=1)
-        offset_x = np.random.uniform(-0.1, 0.1, size=1)
-        if p < 0.6:  # has 40% chance to be flat
-            height_max, height_min = 0.35, 0.65
-        else:
-            height_max, height_min = 0.0, 0.0
-        lw_low, lw_high = 0.1, 0.1
-    else:
-        offset_y = np.random.uniform(-0.18, 0.18, size=1)
-        offset_x = np.random.uniform(-0.1, 0.1, size=1)
-        if p < 0.6:
-            height_max, height_min = 0.15, 0.25
-        else:
-            height_max, height_min = 0.0, 0.0
-        height_max, height_min = 0.15, 0.25
-        lw_low, lw_high = 0.05, 0.05
-
-    mean_x = np.linspace(-w/2, w/2, 3)[1:-1]
-    mean_y = np.zeros(1)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += offset_y; mean_x += offset_x
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-    # import ipdb; ipdb.set_trace()
-
-    height_field_raw = np.zeros((pixel_x, pixel_y))
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    
-    if not top:
-        height_field_raw[0, :] = 0.4
-        height_field_raw[-1, :] = 0.4
-        height_field_raw[:, 0] = 0.4
-        height_field_raw[:, -1] = 0.4
-
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-def test_env_2(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    if top:
-        offset_y = 0.08
-        height_max, height_min = 0.50, 0.50
-        lw_low, lw_high = 0.1, 0.1
-    else:
-        offset_y = -0.08
-        height_max, height_min = 0.2, 0.2
-        lw_low, lw_high = 0.05, 0.05
-
-    mean_x = np.zeros(1)
-    mean_y = np.zeros(1)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += offset_y
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-
-    height_field_raw = np.zeros((pixel_x, pixel_y))
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    
-    # if top:
-    #     height_field_raw[0, :] = 0.5
-    #     height_field_raw[-1, :] = 0.5
-
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-
-def test_env(terrain, top=True):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    if top:
-        mean_x = np.linspace(-l/2, l/2, 8)
-        height_max = 0.3
-        height_min = 0.2
-        offset_y = 0.5
-        var_y = 0.2
-        lw_low = 0.2
-        lw_high = 0.3
-    else:
-        mean_x = np.linspace(-l/2, l/2, 8)[:-1] + l / 16.0
-        height_max = 0.2
-        height_min = 0.1
-        offset_y = 0.7
-        var_y = 0.4
-        lw_low = 0.1
-        lw_high = 0.2
-
-    mean_y = np.linspace(-w/2 + offset_y, w/2 - offset_y, 2)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_y += np.random.uniform(-var_y, var_y, mean_y.shape)
-    mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
-
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-    pw, pl = np.random.uniform(low=0.1, high=0.3, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-    # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    if top:
-        height_field_raw[0, :] = 0.5
-        # height_field_raw[:, 0] = 0.5
-        height_field_raw[-1, :] = 0.5
-        # height_field_raw[:, -1] = 0.5
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-def random_pyramid(terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0.3, length_max=0.6, height_min=0.5, height_max=1.0, base_height=0.42):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-
-    mean_x = np.linspace(-l/2, l/2, num_x+2)
-    mean_y = np.linspace(-w/2, w/2, num_y+2)
-    mean_x, mean_y = np.meshgrid(mean_x, mean_y)
-    mean_x += np.random.uniform(-var_x, var_x, mean_x.shape)
-    mean_x = mean_x.clip(-l/2, l/2)
-    mean_y += np.random.uniform(-var_y, var_y, mean_y.shape)
-    mean_y = mean_y.clip(-w/2, w/2)
-    mean_z = np.random.uniform(height_min, height_max, size=mean_x.shape)
-    means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-
-    pw, pl = np.random.uniform(low=length_min, high=length_max, size=(2, means.shape[0]))
-    wedge_points = np.stack([
-        np.stack([pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([-pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        np.stack([pw+means[:, 0], -pl+means[:, 1], np.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-
-        # shape = (pixel_x, pixel_y, x_coord, y_coord)
-    points_coord = np.stack(np.meshgrid(np.linspace(-w/2, w/2, pixel_y), np.linspace(-l/2, l/2, pixel_x)), axis=-1)
-    height_field_raw = vec_plane_from_points(wedge_points[:, :, 0, :], wedge_points[:, :, 1, :], wedge_points[:, :, 2, :], points_coord)
-    terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
-    
-    return terrain
-
-
-'''
-# ----------------- JAX -----------------
-
-def jit_plane_from_points(p1, p2, p3):
-    v1 = p3 - p1
-    v2 = p3 - p2
-
-    cp = jnp.cross(v1, v2)
-    a, b, c = cp
-
-    d = jnp.dot(cp, p3)
-
-    # assert c != 0
-    return lambda x, y: jnp.clip(d/c - a/c*x - b/c*y, 0, a_max=jnp.inf)
-
-def jit_pyramid_from_points(points):
-    """
-    points [np.ndarray]: in shape (4, 3, 3). 4 planes with each defined by 3 points in 3D space
-    """
-    return lambda x, y: jnp.stack([jit_plane_from_points(*ps)(x, y) for ps in points]).min(0)
-
-@partial(jax.jit, static_argnames=["terrain", "num_x", "num_y", "var_x", "var_y", "length_min", "length_max", "height_min", "height_max", "base_height"])
-def jit_random_pyramid(key, terrain, num_x=4, num_y=4, var_x=0.1, var_y=0.1, length_min=0.3, length_max=0.6, height_min=0.5, height_max=1.0, base_height=0.42):
-    pixel_x, pixel_y = terrain.height_field_raw.shape
-    l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
-    keys = jax.random.split(key, 4)
-
-    mean_x = jnp.linspace(-l/2, l/2, num_x)
-    mean_y = jnp.linspace(-w/2, w/2, num_y)
-    mean_x, mean_y = jnp.meshgrid(mean_x, mean_y)
-    mean_x += jax.random.uniform(keys[0], minval=-var_x, maxval=var_x, shape=mean_x.shape)
-    mean_x = mean_x.clip(-l/2, l/2)
-    mean_y += jax.random.uniform(keys[1], minval=-var_y, maxval=var_y, shape=mean_y.shape)
-    mean_y = mean_y.clip(-w/2, w/2)
-    mean_z = jax.random.uniform(keys[2], minval=height_min, maxval=height_max, shape=mean_x.shape)
-    means = jnp.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
-
-    pw, pl = jax.random.uniform(keys[3], minval=length_min, maxval=length_max, shape=(2, len(means)))
-    wedge_points = jnp.stack([
-        jnp.stack([pw+means[:, 0], pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
-        jnp.stack([-pw+means[:, 0], pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
-        jnp.stack([-pw+means[:, 0], -pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
-        jnp.stack([pw+means[:, 0], -pl+means[:, 1], jnp.zeros_like(pw)], axis=1),
-        means
-    ], axis=1)
-    idx = [
-        [0, 1, -1],
-        [1, 2, -1],
-        [2, 3, -1],
-        [3, 0, -1]
-    ]
-    wedge_points = wedge_points[:, idx, :]
-    
-
-    def f(x, y):
-        return jnp.max(jnp.stack([jit_pyramid_from_points(wps)(x, y) for wps in wedge_points]))
-
-    height_field_raw = jnp.zeros_like(terrain.height_field_raw)
-    for xi, x in enumerate(jnp.linspace(-l/2, l/2, pixel_x)):
-        for yi, y in enumerate(jnp.linspace(-w/2, w/2, pixel_y)):
-            height_field_raw = height_field_raw.at[xi, yi].set(f(x, y))
-    
-    return height_field_raw
-'''
-
-import numpy as np
-from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
-def plot_elevation_map(
-    elevationMap,
-    z_range=[0, 1],
-    size=[0.3762, 0.0935, 0.114],
-    scaler=0.1,
-    save_fig=False,
-):
-    """ Plot the elevation map
-    Args:
-        elevationMap: 3D numpy array of shape (2, n_pixel_x, n_pixel_y)
-        z_range: tuple of (min_z, max_z)
-        size: size of the robot (x, y, z)
-        scaler: horizontal scaler
-    """
-
-    height_points = []
-    for i in [0, 1]:
-        for x in range(elevationMap.shape[1]):
-            for y in range(elevationMap.shape[2]):
-                if z_range[0] <= elevationMap[i, x, y] < z_range[1]:
-                    height_points.append(np.array([
-                        (x - elevationMap.shape[1] // 2) * scaler,
-                        (y - elevationMap.shape[2] // 2) * scaler,
-                        elevationMap[i, x, y]
-                    ]))
-    height_points = np.stack(height_points)
-    if save_fig:
-        fig = plt.figure(figsize=(72, 36))    
-    else:
-        fig = plt.figure(figsize=(3.6, 2.4))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter3D(height_points[:, 0], height_points[:, 1], height_points[:, 2])
-
-    xx = size[0]/2.; yy = size[1]/2.; zz = size[2]/2.
-    cube = np.array([
-        [-xx, -yy, -zz],
-        [+xx, -yy, -zz],
-        [+xx, +yy, -zz],
-        [-xx, +yy, -zz],
-        [-xx, -yy, +zz],
-        [+xx, -yy, +zz],
-        [+xx, +yy, +zz],
-        [-xx, +yy, +zz],
-    ])
-
-    bottom = [0,1,2,3]
-    top    = [4,5,6,7]
-    front  = [0,1,5,4]
-    right  = [1,2,6,5]
-    back   = [2,3,7,6]
-    left   = [0,3,7,4]
-
-    surfs = np.stack([
-        cube[bottom], cube[top], cube[front], cube[right], cube[back], cube[left]
-    ])
-
-    wp = [0., 0., 0.34]; a = 0.3
-    surfs_rot = surfs + wp
-    ax.add_collection3d(Poly3DCollection(surfs_rot[[1]], facecolors='r', alpha=min(1.0, a*2)))
-    ax.add_collection3d(Poly3DCollection(surfs_rot[[0, 2, 3, 4, 5]], facecolors='r', alpha=a))
-    ax.set_box_aspect([ub - lb for lb, ub in (getattr(ax, f'get_{a}lim')() for a in 'xyz')])
-    if save_fig:
-        plt.savefig("elevation_map.png", dpi=300)
-        data = None
-    else:
-        fig.canvas.draw()
-        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        
-    # plt.show(block=True)
-    plt.close()
-
-    return data

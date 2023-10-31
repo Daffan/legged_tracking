@@ -578,7 +578,8 @@ class LeggedRobot(BaseTask):
             else:
                 self.terrain = Terrain(self.cfg.terrain, self.num_train_envs)
 
-        self._create_ground_plane()
+        if mesh_type == "floor":
+            self._create_ground_plane()
         if mesh_type == 'trimesh':
             self._create_trimesh()
         elif mesh_type not in [None, "plane"]:

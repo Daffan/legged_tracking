@@ -74,6 +74,7 @@ class Cfg(PrefixProto, cli=False):
         terrain_type = 'random_pyramid'  # in ["random", "random_pyramid"]
         valid_tunnel_only = False
         ceiling_height = 0.5
+        start_loc = 0.4  # 0.4 is 0.4 * env_length away from the center of the env
 
         # if all zero, it is deterministic starting position
         x_init_range = 0.
@@ -260,9 +261,9 @@ class Cfg(PrefixProto, cli=False):
         
         reward_container_name = "TrajectoryTrackingRewards"
         # parameters for reward functions
-        target_lin_vel = 0.5
-        lin_reaching_criterion = 0.01
-        tracking_sigma_lin = 0.05
+        target_lin_vel = 0.5  # [m/s]
+        lin_reaching_criterion = 0.1  # [m]
+        tracking_sigma_lin = 0.10
         target_ang_vel = np.pi / 2
         ang_reaching_criterion = np.pi / 20.
         tracking_sigma_ang = 0.5

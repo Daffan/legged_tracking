@@ -21,7 +21,7 @@ from tqdm import tqdm
 # LOAD_PATH = "wandb/run-20230915_062051-30d5ikhi/files"
 # LOAD_PATH = "wandb/run-20231008_084214-c26g0as0/files"
 # LOAD_PATH = "wandb/run-20231016_233057-wn7jngb6/files"
-LOAD_PATH = "/tmp/wandb/run-20231025_100406-xcnx0j7c/files"
+LOAD_PATH = "/tmp/wandb/run-20231026_081701-3u41i1hk/files"
 
 def load_policy(logdir):
     body = torch.jit.load(logdir + '/checkpoints/body_latest.jit')
@@ -42,7 +42,7 @@ from go1_gym_learn.ppo_cse_cnn import ActorCritic, AC_Args
 import os
 
 def load_policy(logdir, env, device='cuda:0'):
-    AC_Args.use_cnn = False
+    AC_Args.use_cnn = True
     AC_Args.use_gru = False
     actor_critic = ActorCritic(env.num_obs,
                                 env.num_privileged_obs,
@@ -75,11 +75,11 @@ def load_env(logdir, headless=False):
 
     Cfg.env.recording_width_px = 640
     Cfg.env.recording_height_px = 480
-    Cfg.env.num_envs = 4000
+    Cfg.env.num_envs = 16
     Cfg.env.num_recording_envs = 1
     Cfg.env.look_from_back = True
-    Cfg.terrain.num_rows = 20
-    Cfg.terrain.num_cols = 20
+    Cfg.terrain.num_rows = 4
+    Cfg.terrain.num_cols = 4
     Cfg.domain_rand.push_robots = False
     Cfg.domain_rand.randomize_friction = False
     Cfg.domain_rand.randomize_gravity = False

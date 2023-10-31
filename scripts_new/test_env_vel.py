@@ -83,10 +83,11 @@ def train_go1(headless=True):
     Cfg.rewards.exploration_steps = 100000000  # always explore
 
     Cfg.reward_scales.reaching_linear_vel = args.r_linear_vel
+    Cfg.reward_scales.reaching_yaw = args.r_reaching_yaw
     Cfg.reward_scales.survive = args.r_survive
+    Cfg.reward_scales.lin_vel_z = -2.0
+    Cfg.reward_scales.ang_vel_xy = -0.05
     Cfg.rewards.target_lin_vel = 0.5
-    Cfg.rewards.lin_vel_z = -2.0
-    Cfg.rewards.ang_vel_xy = -0.05
     Cfg.rewards.lin_vel_form = args.lin_vel_form
 
     penalty_scaler = args.penalty_scaler
@@ -171,7 +172,7 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_type = "test_env_7"
         Cfg.terrain.horizontal_scale = 0.01
         Cfg.terrain.terrain_length = 3.0
-        Cfg.terrain.terrain_width = 1.8
+        Cfg.terrain.terrain_width = args.tunnel_width
         Cfg.terrain.terrain_ratio_x = 0.9
         Cfg.terrain.terrain_ratio_y = 0.25
         Cfg.terrain.ceiling_height = 0.8
@@ -189,6 +190,22 @@ def train_go1(headless=True):
             Cfg.env.command_type = command_type
             Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 + 4
             Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 61 * 31 * 2 + 4
+
+    blind = False
+    if blind:
+        Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 1)
+        Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 1)
+        AC_Args.height_map_shape = (2, 1, 1)
+        Cfg.env.measure_front_half = False
+        if command_type in ["xy", "xy_norm"]:
+            Cfg.env.command_type = command_type
+            Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 2 - 4
+            Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 2 - 4
+        else:
+            Cfg.env.command_type = command_type
+            Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 2 + 4
+            Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 2 + 4
+
 
     # goal
     Cfg.commands.base_z = 0.29
@@ -279,7 +296,9 @@ if __name__ == '__main__':
     parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
     parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp"])
     parser.add_argument("--r_linear_vel", type=float, default=1.0)
+    parser.add_argument("--r_reaching_yaw", type=float, default=0.0)
     parser.add_argument("--r_survive", type=float, default=0.0)
+    parser.add_argument("--tunnel_width", type=float, default=2.0)
 
     args = parser.parse_args()
 
