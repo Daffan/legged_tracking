@@ -16,7 +16,7 @@ class Cfg(PrefixProto, cli=False):
         env_spacing = 3.  # not used with heightfields/trimeshes
         send_timeouts = True  # send time out information to the algorithm
         episode_length_s = 20  # episode length in seconds
-        observe_heights = False
+        observe_heights = True
         observe_vel = True
         observe_only_ang_vel = False
         observe_only_lin_vel = False
@@ -64,6 +64,7 @@ class Cfg(PrefixProto, cli=False):
         priv_observe_dummy_variable = False
 
         terminate_end_of_trajectory = False
+        use_terminal_body_rotation = False
         rotate_camera = False
         camera_zero = True
         command_xy_only = True

@@ -112,10 +112,7 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[::self.num_actor][:self.num_envs, 10:13])
         self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        """ self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13
-                                                          )[:, self.feet_indices, 7:10]
-        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
-                              0:3] """
+        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices, 0:3] - self.base_pos
 
         self._post_physics_step_callback()
 
@@ -165,9 +162,6 @@ class LeggedRobot(BaseTask):
             self.current_target_dist += self.cfg.curriculum_thresholds.cl_switch_delta
             self.current_target_dist = min(self.current_target_dist, self.cfg.curriculum_thresholds.cl_goal_target_dist)
             self.cfg.commands.x_mean = self.current_target_dist
-            # only in x direction for now
-            # self.cfg.commands.y_mean += self.current_target_dist
-            # self.cfg.commands.y_mean = min(self.cfg.commands.y_mean, self.cfg.curriculum_thresholds.cl_goal_target_dist)
 
             self.extras["train/episode"]["reached"] = deque(maxlen=4000) # refresh deque 
             self.extras["eval/episode"]["reached"] = deque(maxlen=4000) # refresh deque 
@@ -189,23 +183,8 @@ class LeggedRobot(BaseTask):
             reached_buf = torch.logical_and(self.reached_buf, self.episode_length_buf > self.cfg.rewards.T_reach)
             self.reset_buf = torch.logical_or(reached_buf, self.reset_buf)
 
-        rotation_tan = -(torch.norm(self.projected_gravity[:, :2], dim=1) / self.projected_gravity[:, 2])
-        large_z = self.root_states[::self.num_actor][:, 2] > 0.5
-        # small_z = self.root_states[::self.num_actor][:, 2] < 0.15
-
-        # import ipdb; ipdb.set_trace()
-        # import time; time.sleep(0.5)
-        # print(rotation_tan)
-        # print(self.root_states[::self.num_actor][:, 2])
-        # print("\n\n")
-        # self.reset_buf = torch.logical_or(self.reset_buf, rotation_tan > 2.0)
-        self.reset_buf = torch.logical_or(self.reset_buf, self.projected_gravity[:, 2] > 0.0)
-        self.reset_buf = torch.logical_or(self.reset_buf, large_z)
-        # self.reset_buf = torch.logical_or(self.reset_buf, small_z)
-
-        # if self.reset_buf.any():
-        #     print(self.reset_buf)
-        # import ipdb; ipdb.set_trace()
+        if self.cfg.env.use_terminal_body_rotation:
+            self.reset_buf = torch.logical_or(self.reset_buf, self.projected_gravity[:, 2] > 0.0)  # any angle > 90 degree
 
     def reset_idx(self, env_ids):
         """ Reset some environments.
@@ -341,11 +320,7 @@ class LeggedRobot(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
             self.command_sums["termination"] += rew
-        """ 
-        self.command_sums["lin_vel_raw"] += self.base_lin_vel[:, 0]
-        self.command_sums["ang_vel_raw"] += self.base_ang_vel[:, 2]
-        self.command_sums["lin_vel_residual"] += (self.base_lin_vel[:, 0] - self.commands[:, 0]) ** 2
-        self.command_sums["ang_vel_residual"] += (self.base_ang_vel[:, 2] - self.commands[:, 2]) ** 2 """
+
         self.command_sums["ep_timesteps"] += 1
 
     def compute_observations(self):
@@ -357,13 +332,6 @@ class LeggedRobot(BaseTask):
                                   self.dof_vel[:, :self.num_actuated_dof] * self.obs_scales.dof_vel,
                                   self.actions
                                   ), dim=-1)
-        # if self.cfg.env.observe_command and not self.cfg.env.observe_height_command:
-        #     self.obs_buf = torch.cat((self.projected_gravity,
-        #                               self.commands[:, :3] * self.commands_scale,
-        #                               (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
-        #                               self.dof_vel * self.obs_scales.dof_vel,
-        #                               self.actions
-        #                               ), dim=-1)
 
         if self.cfg.env.observe_command:
             self.obs_buf = torch.cat((self.projected_gravity,
@@ -389,9 +357,10 @@ class LeggedRobot(BaseTask):
                 measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.2)
             else:
                 measured_heights_front = torch.clip(measured_heights_front, min=0, max=self.cfg.terrain.ceiling_height)
+                # to the range of [-0.5, 0.5]
+                measured_heights_front /= self.cfg.terrain.ceiling_height
+                measured_heights_front -= 0.5
 
-
-            # measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
             measured_heights_front = measured_heights_front.reshape(self.num_train_envs, -1) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((
                 self.obs_buf, measured_heights_front), dim=-1)
@@ -876,7 +845,6 @@ class LeggedRobot(BaseTask):
             # update relative linear and rotation at every timestep
             self.local_relative_linear, self.local_relative_rotation = \
                 self._compute_relative_target_pose(self.local_target_poses)
-            # import ipdb; ipdb.set_trace()
         else:
             self.local_target_poses = self.target_poses
             self.local_relative_linear, self.local_relative_rotation = \
@@ -1153,13 +1121,9 @@ class LeggedRobot(BaseTask):
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[::self.num_actor][:self.num_envs, 3:7]
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_state)
-        """ self.foot_velocities = self.rigid_body_state.view(self.num_envs, -1, 13)[:,
-                               self.feet_indices,
-                               7:10]
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
-                              0:3] - self.base_pos """
+                              0:3] - self.base_pos  # this might not be correct
         self.prev_base_pos = self.base_pos.clone()
-        # self.prev_foot_velocities = self.foot_velocities.clone()
 
         self.lag_buffer = [torch.zeros_like(self.dof_pos) for i in range(self.cfg.domain_rand.lag_timesteps+1)]
 
@@ -1178,9 +1142,9 @@ class LeggedRobot(BaseTask):
         self.reached_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
         self.plan_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
-        # if self.cfg.env.observe_heights:
-        self.height_points = self._init_height_points()
-        self.measured_heights = 0
+        if self.cfg.env.observe_heights:
+            self.height_points = self._init_height_points()
+            self.measured_heights = 0
 
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)  # , self.eval_cfg)
         self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat(
