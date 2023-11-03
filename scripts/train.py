@@ -43,15 +43,19 @@ def train_go1(headless=True):
     command_type = args.command_type  # ["xy, "6dof", "xy_norm"]
     if command_type in ["xy", "xy_norm"]:
         Cfg.env.command_type = command_type
-        Cfg.env.num_observations = 261 + int(args.timestep_in_obs)
-        Cfg.env.num_scalar_observations = 261 + int(args.timestep_in_obs)
+        Cfg.env.num_observations = 261 if args.measure_front_half else 503
+        Cfg.env.num_observations += int(args.timestep_in_obs)
+        Cfg.env.num_scalar_observations = Cfg.env.num_observations
     else:
         Cfg.env.command_type = command_type
-        Cfg.env.num_observations = 265 + int(args.timestep_in_obs) # 507  (consider height meaurement only at front)
-        Cfg.env.num_scalar_observations = 265 + int(args.timestep_in_obs)  # 507
+        Cfg.env.num_observations = 265 if args.measure_front_half else 507
+        Cfg.env.num_observations += int(args.timestep_in_obs)
+        Cfg.env.num_scalar_observations = Cfg.env.num_observations
 
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
+    AC_Args.height_map_shape = (2, 21, 11)
+
     Cfg.env.num_observation_history = args.num_history
     Cfg.env.look_from_back = True
     Cfg.env.terminate_end_of_trajectory = False
@@ -69,10 +73,12 @@ def train_go1(headless=True):
     # rewards
     Cfg.rewards.T_reach = args.t_reach
     Cfg.rewards.large_dist_threshold = 0.5
+    Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.lin_reaching_criterion = 0.1
     Cfg.rewards.only_positive_rewards = args.only_positive
     Cfg.rewards.use_terminal_body_height = False
     Cfg.rewards.lin_vel_form = args.lin_vel_form
+    Cfg.rewards.exploration_steps = +np.inf
 
     # penalty reward scales
     penalty_scaler = args.penalty_scaler
@@ -87,7 +93,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_pitch = 0.0
     if args.strategy == "e2e":
         Cfg.reward_scales.e2e = args.r_task
-        Cfg.rewards.exploration_steps = args.exploration_steps
+        Cfg.rewards.exploration_steps = args.exploration_steps  # decay only applies for e2e
     elif args.strategy == "pms":  # parameterized motor skill
         # TODO: put a positive number here
         Cfg.reward_scales.reaching_z = 0.0
@@ -185,11 +191,11 @@ if __name__ == '__main__':
     # user setting
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--name", type=str, default="e2e")
+    parser.add_argument("--name", type=str, default="velocity_tracking")
     parser.add_argument("--resume", type=str, default='')
     parser.add_argument("--freeze_model", action="store_true")
     parser.add_argument("--device", default=0, type=int)
-    parser.add_argument("strategy", default="e2e", choices=["e2e", "pms", "vel"])
+    parser.add_argument("--strategy", default="vel", choices=["e2e", "pms", "vel"])
 
     # training setting
     parser.add_argument("--gru", action="store_true")
@@ -198,7 +204,7 @@ if __name__ == '__main__':
     # env setting
     parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
     parser.add_argument("--timestep_in_obs", action="store_true")
-    parser.add_argument("--num_history", type=int, default=5)
+    parser.add_argument("--num_history", type=int, default=1)
     parser.add_argument("--measure_front_half", action="store_true")
     parser.add_argument("--rotate_camera", action="store_true")
     parser.add_argument("--camera_zero", action="store_true")
@@ -209,6 +215,7 @@ if __name__ == '__main__':
     parser.add_argument("--r_explore", type=float, default=1.0)
     parser.add_argument("--penalty_scaler", type=float, default=1.0)
     parser.add_argument("--only_positive", action="store_true")
+    parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")
 
     args = parser.parse_args()
 

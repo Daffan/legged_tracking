@@ -41,21 +41,16 @@ def pyramid_from_points(points):
 
 class TerrainFunctions:
 
-    def single_path(terrain, top=True, flat=None):
+    def single_path(terrain, top=True, p_flat=0.8):
         pixel_x, pixel_y = terrain.height_field_raw.shape
         l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
 
-        if flat is None:
-            p = np.random.uniform()
-        elif flat:
-            p = 1.0
-        else:
-            p = 0.0
+        p = np.random.uniform()
 
         if top:
             offset_y = np.random.uniform(-0.6, 0.6, size=1)
             offset_x = np.random.uniform(-0.3, 0.3, size=1)
-            if p < 0.8:  # has 20% chance to be flat
+            if p < p_flat:  # has 20% chance to be flat
                 height_max, height_min = 0.35, 0.65
             else:
                 height_max, height_min = 0.0, 0.0
@@ -63,7 +58,7 @@ class TerrainFunctions:
         else:
             offset_y = np.random.uniform(-0.4, 0.4, size=1)
             offset_x = np.random.uniform(-0.2, 0.2, size=1)
-            if p < 0.8:
+            if p < p_flat:
                 height_max, height_min = 0.15, 0.25
             else:
                 height_max, height_min = 0.0, 0.0

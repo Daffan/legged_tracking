@@ -5,7 +5,7 @@ from typing import Union
 from collections import defaultdict, deque
 
 from go1_gym.envs.base.legged_robot_trajectory_tracking import LeggedRobot
-from go1_gym.envs.base.legged_robot_trajectory_tracking_config_old import Cfg
+from go1_gym.envs.base.legged_robot_trajectory_tracking_config import Cfg
 
 
 class TrajectoryTrackingEnv(LeggedRobot):

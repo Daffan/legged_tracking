@@ -14,7 +14,7 @@ import numpy as np
 from go1_gym import MINI_GYM_ROOT_DIR
 from go1_gym.envs.base.base_task import BaseTask
 from go1_gym.utils.math_utils import quat_apply_yaw, wrap_to_pi, get_scale_shift, quat_without_yaw, quaternion_to_roll_pitch_yaw, quat_apply_yaw_inverse
-from go1_gym.utils.tunnel import Terrain, plot_elevation_map
+from go1_gym.utils.tunnel import Terrain
 from .legged_robot_trajectory_tracking_config import Cfg
 from go1_gym.envs.trajectories.trajectory_function import TrajectoryFunctions
 
@@ -112,7 +112,7 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[::self.num_actor][:self.num_envs, 10:13])
         self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices, 0:3] - self.base_pos
+        self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices, 0:3] - self.base_pos[:, None, :]
 
         self._post_physics_step_callback()
 
@@ -1122,7 +1122,7 @@ class LeggedRobot(BaseTask):
         self.base_quat = self.root_states[::self.num_actor][:self.num_envs, 3:7]
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_state)
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
-                              0:3] - self.base_pos  # this might not be correct
+                              0:3] - self.base_pos[:, None, :]  # this might not be correct
         self.prev_base_pos = self.base_pos.clone()
 
         self.lag_buffer = [torch.zeros_like(self.dof_pos) for i in range(self.cfg.domain_rand.lag_timesteps+1)]
