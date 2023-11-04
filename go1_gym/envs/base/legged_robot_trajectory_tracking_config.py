@@ -260,7 +260,7 @@ class Cfg(PrefixProto, cli=False):
         only_positive_rewards_ji22_style = False
         sigma_rew_neg = 5
         
-        reward_container_name = "TrajectoryTrackingRewards"
+        reward_container_name = "RewardsCrawling"
         # parameters for reward functions
         target_lin_vel = 0.5  # [m/s]
         lin_reaching_criterion = 0.1  # [m]
@@ -276,11 +276,11 @@ class Cfg(PrefixProto, cli=False):
         dof_acc = -2.5e-7
         collision = -1.
         action_rate = -0.01
-        reaching_linear_vel = 1.2  # 0.6
-        reaching_z = -10.0
+        reaching_linear_vel = 0.0  # 0.6
+        reaching_z = 0.0
         # reaching_roll = -0.5
         # reaching_pitch = -0.5
-        reaching_yaw = 0.6  # 0.3
+        reaching_yaw = 0.0  # 0.3
         # dof_pos_limits = -10.0
 
     class normalization(PrefixProto, cli=False):

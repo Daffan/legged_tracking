@@ -8,6 +8,11 @@ EPSILON = 1e-6
 
 class RewardsCrawling:
     # reward for crawling behavior
+    def __init__(self, env):
+        self.env = env
+
+    def load_env(self, env):
+        self.env = env
 
     # ---------------- penalty ----------------
     def _reward_dof_acc(self):

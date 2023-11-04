@@ -22,6 +22,44 @@ class AC_Args(PrefixProto, cli=False):
     height_map_shape = (2, 61, 31)
     cnn_num_embedding = 256
     lstm_num_embedding = 256
+    
+    
+class HeightMapEncoder(nn.Module):
+    def __init__(self, height_map_shape, num_embedding=128, use_cnn=False, activation="elu"):
+        super().__init__()
+        self.height_map_shape = height_map_shape
+        self.use_cnn = use_cnn
+        self.num_embedding = num_embedding
+        
+        activation = get_activation(activation)
+        
+        if use_cnn:
+            self.model = nn.Sequential(
+                nn.Conv2d(2, 16, kernel_size=3, stride=1, padding=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.Flatten(),
+                nn.Linear(3360, num_embedding),
+            )
+        else:
+            self.model = nn.Sequential(
+                nn.Linear(np.prod(height_map_shape), 256),
+                activation,
+                nn.Linear(256, num_embedding),
+                activation
+            )
+            
+    def forward(self, x):
+        batch_size = x.shape[0]
+        if self.use_cnn:
+            x = x.reshape(batch_size, *self.height_map_shape)
+        else:
+            x = x.reshape(batch_size, -1)
+            
+        return self.model(x)
 
 
 class ActorCritic(nn.Module):
@@ -45,7 +83,7 @@ class ActorCritic(nn.Module):
         self.num_privileged_obs = num_privileged_obs
 
         self.height_map_shape = ac_args.height_map_shape
-        self.cnn_num_embedding = ac_args.cnn_num_embedding if ac_args.use_cnn else np.prod(self.height_map_shape)
+        self.cnn_num_embedding = ac_args.cnn_num_embedding
         self.lstm_input_dim = int(num_obs - np.prod(self.height_map_shape) + self.cnn_num_embedding)
         self.lstm_num_embedding = ac_args.lstm_num_embedding if ac_args.use_gru else self.lstm_input_dim
         self.policy_input_dim = int(num_obs - np.prod(self.height_map_shape) + self.lstm_num_embedding)
@@ -53,22 +91,11 @@ class ActorCritic(nn.Module):
         activation = get_activation(ac_args.activation)
 
         # height_map is in shape (2, 11, 10)
-        if ac_args.use_cnn:
-            self.height_map_embedding = nn.Sequential(
-                nn.Conv2d(2, 16, kernel_size=3, stride=1, padding=1),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.Flatten(),
-                nn.Linear(3360, ac_args.cnn_num_embedding),
-            )
-        else:
-            self.height_map_embedding = nn.Sequential(
-                nn.Flatten(),
-                # nn.Linear(int(np.prod(self.height_map_shape)),  self.cnn_num_embedding)
-            )
+        self.height_map_encoder = HeightMapEncoder(
+            self.height_map_shape,
+            self.cnn_num_embedding,
+            use_cnn=ac_args.use_cnn
+        )
 
         # two layers of LSTM
         if ac_args.use_gru:
@@ -154,7 +181,7 @@ class ActorCritic(nn.Module):
         batch_size = observation_history.shape[0]
         observation_history = observation_history.view(batch_size, -1, self.num_obs)
         height_map = observation_history[:, :, -np.prod(self.height_map_shape):].reshape(-1, *self.height_map_shape)
-        height_map_embedding = self.height_map_embedding(height_map).reshape(batch_size, -1, self.cnn_num_embedding)
+        height_map_embedding = self.height_map_encoder(height_map).reshape(batch_size, -1, self.cnn_num_embedding)
         lstm_input = torch.cat([
             observation_history[:, :, :-np.prod(self.height_map_shape)],
             height_map_embedding

@@ -38,7 +38,6 @@ def train_go1(headless=True):
     config_go1(Cfg)
     # observation space
     Cfg.env.observe_heights = True
-    Cfg.env.num_envs = 4000
     
     command_type = args.command_type  # ["xy, "6dof", "xy_norm"]
     if command_type in ["xy", "xy_norm"]:
@@ -101,33 +100,25 @@ def train_go1(headless=True):
         Cfg.reward_scales.reaching_pitch = 0.0
     Cfg.reward_scales.exploration = args.r_explore
 
-    Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.traj_length = 1
-    Cfg.commands.num_interpolation = 1
-    Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
-
     # terrain
+    Cfg.env.num_envs = 4000
     Cfg.terrain.num_cols = 20
     Cfg.terrain.num_rows = 20
     if args.terrain == "plane":
         Cfg.terrain.mesh_type = 'plane'
     elif args.terrain == "single_path":
-        Cfg.terrain.num_cols = 20
-        Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_type = "single_path"
-        Cfg.terrain.terrain_length = 3.0
-        Cfg.terrain.terrain_width = 1.8
+        Cfg.terrain.terrain_length = 4.0
+        Cfg.terrain.terrain_width = 2.0
         Cfg.terrain.terrain_ratio_x = 0.9
-        Cfg.terrain.terrain_ratio_y = 0.25
+        Cfg.terrain.terrain_ratio_y = 0.5
         Cfg.terrain.ceiling_height = 0.8
-        Cfg.terrain.start_loc = 0.4
+        Cfg.terrain.start_loc = 0.35
         Cfg.env.episode_length_s = 10.0
         # single path do not need planning
         Cfg.commands.sampling_based_planning = False
 
     elif args.terrain == "multi_path":
-        Cfg.terrain.num_cols = 20
-        Cfg.terrain.num_rows = 20
         Cfg.terrain.terrain_type = "single_path"
         Cfg.terrain.terrain_length = 3.0
         Cfg.terrain.terrain_width = args.tunnel_width
@@ -139,6 +130,11 @@ def train_go1(headless=True):
         # multi-path needs planning
         Cfg.commands.sampling_based_planning = True
         Cfg.commands.plan_interval = 100
+        
+    Cfg.commands.traj_function = "fixed_target"
+    Cfg.commands.traj_length = 1
+    Cfg.commands.num_interpolation = 1
+    Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
 
     blind = False
     if blind:

@@ -1299,7 +1299,8 @@ class LeggedRobot(BaseTask):
         # reward containers
         from go1_gym.envs.rewards.corl_rewards import CoRLRewards
         from go1_gym.envs.rewards.trajectory_tracking_reward import TrajectoryTrackingRewards
-        reward_containers = {"CoRLRewards": CoRLRewards, "TrajectoryTrackingRewards": TrajectoryTrackingRewards}
+        from go1_gym.envs.rewards.reward_crawling import RewardsCrawling
+        reward_containers = {"CoRLRewards": CoRLRewards, "TrajectoryTrackingRewards": TrajectoryTrackingRewards, "RewardsCrawling": RewardsCrawling}
         self.reward_container = reward_containers[self.cfg.rewards.reward_container_name](self)
 
         # remove zero scales + multiply non-zero ones by dt
