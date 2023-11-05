@@ -12,11 +12,18 @@ def train_go1(headless=True):
   
     # from ml_logger import logger
 
-    from go1_gym_learn.ppo_cse_cnn import Runner
     from go1_gym.envs.wrappers.history_wrapper import HistoryWrapper
-    from go1_gym_learn.ppo_cse_cnn.actor_critic import AC_Args
-    from go1_gym_learn.ppo_cse_cnn.ppo import PPO_Args
-    from go1_gym_learn.ppo_cse_cnn import RunnerArgs
+
+    if args.old_ppo:
+        from go1_gym_learn.ppo_cse import Runner
+        from go1_gym_learn.ppo_cse.actor_critic import AC_Args
+        from go1_gym_learn.ppo_cse.ppo import PPO_Args
+        from go1_gym_learn.ppo_cse import RunnerArgs
+    else:
+        from go1_gym_learn.ppo_cse_cnn import Runner
+        from go1_gym_learn.ppo_cse_cnn.actor_critic import AC_Args
+        from go1_gym_learn.ppo_cse_cnn.ppo import PPO_Args
+        from go1_gym_learn.ppo_cse_cnn import RunnerArgs
 
     import random
     import numpy as np
@@ -86,6 +93,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.action_rate = -1e-3 * penalty_scaler
     Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
     Cfg.reward_scales.collision = -1.0 * penalty_scaler
+    Cfg.reward_scales.height = -2.0 * penalty_scaler
     # task reward scales
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.reaching_roll = 0.0
@@ -119,7 +127,7 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = False
 
     elif args.terrain == "multi_path":
-        Cfg.terrain.terrain_type = "single_path"
+        Cfg.terrain.terrain_type = "multi_path"
         Cfg.terrain.terrain_length = 3.0
         Cfg.terrain.terrain_width = args.tunnel_width
         Cfg.terrain.terrain_ratio_x = 0.9
@@ -136,16 +144,16 @@ def train_go1(headless=True):
     Cfg.commands.num_interpolation = 1
     Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
 
-    blind = False
-    if blind:
-        Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 1)
-        Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 1)
-        AC_Args.height_map_shape = (2, 1, 1)
+    if args.blind:
+        Cfg.env.observe_heights = False
+        # Cfg.terrain.measured_points_x = np.linspace(-0.6, 0.6, 1)
+        # Cfg.terrain.measured_points_y = np.linspace(-0.3, 0.3, 1)
+        # AC_Args.height_map_shape = (2, 1, 1)
         Cfg.env.measure_front_half = False
-        if command_type in ["xy", "xy_norm"]:
+        if command_type in ["xy", "xy_norm"]:   
             Cfg.env.command_type = command_type
-            Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 2 - 4
-            Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 2 - 4
+            Cfg.env.num_observations = 45 + int(args.timestep_in_obs) - 4
+            Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) - 4
         else:
             Cfg.env.command_type = command_type
             Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 2 + 4
@@ -166,13 +174,16 @@ def train_go1(headless=True):
 
     env = HistoryWrapper(env)
 
-    """ import time
+    import time
+    print("Is recording?", env.record_now)
+    env.pause_recording()
     start = time.time()
     for i in range(100):
         print(i, end='\r')
         action = torch.rand(4000, 12).to("cuda:0")
         env.step(action)
-    print(1000 * 4000 / (time.time() - start)) """
+    print(1000 * 4000 / (time.time() - start))
+    import ipdb; ipdb.set_trace()
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
     runner.learn(num_learning_iterations=5000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
@@ -194,16 +205,18 @@ if __name__ == '__main__':
     parser.add_argument("--strategy", default="vel", choices=["e2e", "pms", "vel"])
 
     # training setting
+    parser.add_argument("--old_ppo", action="store_true")
     parser.add_argument("--gru", action="store_true")
     parser.add_argument("--cnn", action="store_true")
 
     # env setting
-    parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
+    parser.add_argument("--command_type", default="xy_norm", choices=["xy", "6dof", "xy_norm"])
     parser.add_argument("--timestep_in_obs", action="store_true")
     parser.add_argument("--num_history", type=int, default=1)
     parser.add_argument("--measure_front_half", action="store_true")
     parser.add_argument("--rotate_camera", action="store_true")
     parser.add_argument("--camera_zero", action="store_true")
+    parser.add_argument("--blind", action="store_true")
     parser.add_argument("--terrain", default="single_path", choices=["single_path", "multi_path", "plane"])
 
     # reward setting

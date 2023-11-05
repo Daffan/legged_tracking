@@ -207,6 +207,15 @@ def train_go1(headless=True):
 
     env = VelocityTrackingEasyEnv(sim_device='cuda:0', headless=False, cfg=Cfg)
 
+    import time
+    start = time.time()
+    for i in range(100):
+        print(i, end='\r')
+        action = torch.rand(4000, 12).to("cuda:0")
+        env.step(action)
+    print(1000 * 4000 / (time.time() - start))
+    import ipdb; ipdb.set_trace()
+
     # log the experiment parameters
     # logger.log_params(AC_Args=vars(AC_Args), PPO_Args=vars(PPO_Args), RunnerArgs=vars(RunnerArgs),
     #                   Cfg=vars(Cfg))

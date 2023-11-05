@@ -11,7 +11,7 @@ import torch
 import wandb
 from params_proto import PrefixProto
 
-from .actor_critic import ActorCritic
+from .actor_critic import ActorCritic, AC_Args
 from .rollout_storage import RolloutStorage
 
 
@@ -65,7 +65,7 @@ class RunnerArgs(PrefixProto, cli=False):
 
 class Runner:
 
-    def __init__(self, env, device='cpu', runner_args=RunnerArgs, log_wandb=False):
+    def __init__(self, env, device='cpu', runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=False):
         from .ppo import PPO
 
         self.device = device

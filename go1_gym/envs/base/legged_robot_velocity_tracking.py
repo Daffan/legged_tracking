@@ -63,6 +63,8 @@ class LeggedRobot(BaseTask):
         Args:
             actions (torch.Tensor): Tensor of shape (num_envs, num_actions_per_env)
         """
+        import time
+        start_time = time.time()
         clip_actions = self.cfg.normalization.clip_actions
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         # step physics and render each frame
@@ -78,7 +80,23 @@ class LeggedRobot(BaseTask):
             # if self.device == 'cpu':
             self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
+        
+        post_forward_sim_time = time.time()
+        try:
+            self.forward_sim_time.append(-start_time + post_forward_sim_time)
+        except:
+            self.forward_sim_time = []
+            self.forward_sim_time.append(-start_time + post_forward_sim_time)
+        print("forward_sim_time", np.mean(self.forward_sim_time))
+
         self.post_physics_step()
+
+        try:
+            self.post_phyics_time.append(time.time() - post_forward_sim_time)
+        except:
+            self.post_phyics_time = []
+            self.post_phyics_time.append(time.time() - post_forward_sim_time)
+        print("post_phyics_time", np.mean(self.post_phyics_time))
 
         # return clipped obs, clipped states (None), rewards, dones and infos
         clip_obs = self.cfg.normalization.clip_observations
@@ -1712,6 +1730,7 @@ class LeggedRobot(BaseTask):
             self.env_origins[env_ids, 0] = spacing * xx.flatten()[:len(env_ids)]
             self.env_origins[env_ids, 1] = spacing * yy.flatten()[:len(env_ids)]
             self.env_origins[env_ids, 2] = 0.
+        import ipdb; ipdb.set_trace()
 
     def _parse_cfg(self, cfg):
         self.dt = self.cfg.control.decimation * self.sim_params.dt

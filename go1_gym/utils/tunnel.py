@@ -78,7 +78,7 @@ class Terrain:
         # Set ceiling height to be self.cfg.ceiling_height
         # and floor height to be 0.0
         self.height_field_raw = np.ones((2, self.tot_rows , self.tot_cols), dtype=np.int16) * int(1. / cfg.vertical_scale) * self.cfg.ceiling_height
-        self.height_field_raw[1, :, :] = 0.0 * int(1. / cfg.vertical_scale)
+        self.height_field_raw[1, :, :] = 0.5 * int(1. / cfg.vertical_scale)
         self.height_field_env = []
         # this is accessed later to query the height map
         self.height_samples_by_row_col = np.zeros((cfg.num_rows, cfg.num_cols, 2, self.length_per_env_pixels, self.width_per_env_pixels))

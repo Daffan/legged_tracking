@@ -94,7 +94,8 @@ class ActorCritic(nn.Module):
         self.height_map_encoder = HeightMapEncoder(
             self.height_map_shape,
             self.cnn_num_embedding,
-            use_cnn=ac_args.use_cnn
+            use_cnn=ac_args.use_cnn,
+            activation=ac_args.activation
         )
 
         # two layers of LSTM

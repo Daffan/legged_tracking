@@ -76,6 +76,9 @@ class RewardsCrawling:
         if self.env.cfg.rewards.lin_vel_form == "l2":
             return torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
         
+    def _reward_height(self):
+        return torch.square(self.env.relative_linear[:, 2] - self.env.cfg.rewards.base_height_target)
+        
     def _reward_reaching_z(self):
         return torch.square(self.env.relative_linear[:, 2])
 
