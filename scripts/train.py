@@ -73,8 +73,8 @@ def train_go1(headless=True):
 
     # asset
     # change to not terminate on, but just penalize base contact, 
-    Cfg.asset.penalize_contacts_on = ["thigh", "calf", "base"]
-    Cfg.asset.terminate_after_contacts_on = []
+    Cfg.asset.penalize_contacts_on = ["thigh", "calf"]
+    Cfg.asset.terminate_after_contacts_on = ["base"]
 
     # rewards
     Cfg.rewards.T_reach = args.t_reach

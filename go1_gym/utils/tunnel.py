@@ -136,6 +136,11 @@ class Terrain:
                 v_top_bottom.append(v); t_top_bottom.append(t)
             self.vertices.append(v_top_bottom); self.triangles.append(t_top_bottom)
 
+        self.vertices_raw, self.triangles_raw = terrain_utils.convert_heightfield_to_trimesh(self.height_field_raw,
+                                                                                         self.cfg.horizontal_scale,
+                                                                                         self.cfg.vertical_scale,
+                                                                                         0.9)
+
     def make_terrain(self, terrain_type, difficulty, k, top=True):
         terrain = terrain_utils.SubTerrain(   "terrain",
                                 width=int(self.width_per_env_pixels * self.terrain_ratio_y),
