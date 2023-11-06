@@ -37,13 +37,13 @@ class RewardsCrawling:
     def _reward_action_rate(self):
         # Penalize changes in actions
         return torch.sum(torch.square(self.env.last_actions - self.env.actions), dim=1)
-
-    def _reward_ang_vel_xy(self):
-        # Penalize xy axes base angular velocity
-        return torch.sum(torch.square(self.env.base_ang_vel[:, :2]), dim=1)
     
     def _reward_base_height(self):
         return torch.square(self.env.relative_linear[:, 2] - self.env.cfg.rewards.base_height_target)
+    
+    def _reward_ang_vel_xy(self):
+        # Penalize xy axes base angular velocity
+        return torch.sum(torch.square(self.env.base_ang_vel[:, :2]), dim=1)
 
     # TODO: consider adding foot to body center
 
@@ -64,7 +64,7 @@ class RewardsCrawling:
         after_t_reach = self.env.episode_length_buf > self.env.cfg.rewards.T_reach
         return torch.exp(-linear_vel_error/self.env.cfg.rewards.tracking_sigma_lin) * in_dist.float() * after_t_reach.float()
     
-    def _reward_exploration(self):
+    def _reward_exploration_lin(self):
         """ rewarding the linear velocity to be close to
             the specified target velocity toward the target pose
         """
@@ -74,7 +74,7 @@ class RewardsCrawling:
         # target linear velocity (default 0.25 m/s)
         target_linear_vel = target_linear_vel / (magnitude + EPSILON) * self.env.cfg.rewards.target_lin_vel
         # if in a distance range of 0.05, set the target to be 0
-        target_linear_vel *= (magnitude > self.env.cfg.commands.switch_dist)
+        target_linear_vel *= (magnitude > self.env.cfg.rewards.lin_reaching_criterion)
         if self.env.cfg.rewards.lin_vel_form == "exp":
             linear_vel_error = torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
             return torch.exp(-linear_vel_error/self.env.cfg.rewards.tracking_sigma_lin)
@@ -83,8 +83,19 @@ class RewardsCrawling:
         if self.env.cfg.rewards.lin_vel_form == "l2":
             return torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
         
+    def _reward_exploration_yaw(self):
+        ''' rewarding the angular velocity to be close to
+            the specified target angualr velocity towards the target pose yaw
+        '''
+        target_angular_vel = self.env.relative_rotation[:, 2]
+        magnitude = target_angular_vel.abs()
+        target_angular_vel = target_angular_vel / (magnitude + EPSILON) * self.env.cfg.rewards.target_ang_vel  # pi/2 angular velocity
+        target_angular_vel *= (magnitude > self.env.cfg.rewards.ang_reaching_criterion)  # if angle error smaller than pi/10.
+        ang_vel_error = torch.square(target_angular_vel - self.env.base_ang_vel[:, 2])
+        return torch.exp(-ang_vel_error/self.env.cfg.rewards.tracking_sigma_ang)
+        
     def _reward_reaching_z(self):
-        return torch.square(self.env.relative_linear[:, 2])
+        return torch.square(self.env.relative_linear[:, 2]) 
 
     def _reward_reaching_roll(self):
         return torch.square(self.env.relative_rotation[:, 0])

@@ -66,6 +66,7 @@ def train_go1(headless=True):
     Cfg.env.look_from_back = True
     Cfg.env.viewer_look_at_robot = False
     Cfg.env.terminate_end_of_trajectory = False
+    Cfg.env.record_all_envs = False
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = args.rotate_camera
     Cfg.env.camera_zero = args.camera_zero
@@ -82,8 +83,10 @@ def train_go1(headless=True):
     Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.small_vel_threshold = 0.1
     Cfg.rewards.lin_reaching_criterion = 0.1
+    Cfg.rewards.ang_reaching_criterion = np.pi / 10.0
     Cfg.rewards.only_positive_rewards = args.only_positive
-    Cfg.rewards.use_terminal_body_height = False
+    Cfg.rewards.use_terminal_body_height = True
+    Cfg.rewards.terminal_body_height = args.terminal_body_height
     Cfg.rewards.lin_vel_form = args.lin_vel_form
     Cfg.rewards.exploration_steps = +np.inf
 
@@ -109,7 +112,8 @@ def train_go1(headless=True):
         Cfg.reward_scales.reaching_z = 0.0
         Cfg.reward_scales.reaching_roll = 0.0
         Cfg.reward_scales.reaching_pitch = 0.0
-    Cfg.reward_scales.exploration = args.r_explore
+    Cfg.reward_scales.exploration_lin = args.r_explore_lin
+    Cfg.reward_scales.exploration_yaw = args.r_explore_yaw
 
     # terrain
     Cfg.env.num_envs = 4000
@@ -162,6 +166,10 @@ def train_go1(headless=True):
             Cfg.env.command_type = command_type
             Cfg.env.num_observations = 45 + int(args.timestep_in_obs) + 2 + 4
             Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 2 + 4
+
+    # domain randomization stuff
+    if args.no_domain_rand:
+        Cfg.domain_rand.push_robots = False
     
     RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
@@ -187,7 +195,7 @@ def train_go1(headless=True):
         print(i, end='\r')
         action = torch.rand(Cfg.env.num_envs, 12).to("cuda:0") / 5.0
         env.step(action)
-    print(1000 * Cfg.env.num_envs / (time.time() - start))
+    print(100 * Cfg.env.num_envs / (time.time() - start))
     import ipdb; ipdb.set_trace() """
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
@@ -222,11 +230,14 @@ if __name__ == '__main__':
     parser.add_argument("--rotate_camera", action="store_true")
     parser.add_argument("--camera_zero", action="store_true")
     parser.add_argument("--blind", action="store_true")
+    parser.add_argument("--terminal_body_height", type=float, default=0.0)
     parser.add_argument("--terrain", default="single_path", choices=["single_path", "multi_path", "plane"])
+    parser.add_argument("--no_domain_rand", action="store_true")
 
     # reward setting
     parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp"])
-    parser.add_argument("--r_explore", type=float, default=1.0)
+    parser.add_argument("--r_explore_lin", type=float, default=1.0)
+    parser.add_argument("--r_explore_yaw", type=float, default=0.4)
     parser.add_argument("--penalty_scaler", type=float, default=1.0)
     parser.add_argument("--only_positive", action="store_true")
     parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")

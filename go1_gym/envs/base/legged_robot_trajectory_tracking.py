@@ -166,11 +166,17 @@ class LeggedRobot(BaseTask):
         self._render_headless()
 
     def update_curriculum(self):
-        if "exploration" in self.reward_scales and self.reward_scales["exploration"] > 0:
+        if "exploration_lin" in self.reward_scales and self.reward_scales["exploration_lin"] > 0:
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
-                self.reward_scales["exploration"] -= self.cfg.reward_scales.exploration / self.cfg.rewards.exploration_steps
-                if self.reward_scales["exploration"] <= 0:
-                    print("Exploration reward disabled")
+                self.reward_scales["exploration_lin"] -= self.cfg.reward_scales.exploration_lin / self.cfg.rewards.exploration_steps
+                if self.reward_scales["exploration_lin"] <= 0:
+                    print("Exploration_lin reward disabled")
+
+        if "exploration_yaw" in self.reward_scales and self.reward_scales["exploration_yaw"] > 0:
+            if self.common_step_counter > self.cfg.rewards.exploration_steps:
+                self.reward_scales["exploration_yaw"] -= self.cfg.reward_scales.exploration_yaw / self.cfg.rewards.exploration_steps
+                if self.reward_scales["exploration_yaw"] <= 0:
+                    print("Exploration_yaw reward disabled")
 
         if self.cfg.curriculum_thresholds.cl_fix_target and \
             np.mean(self.extras["train/episode"]["reached"]) > \
@@ -565,8 +571,8 @@ class LeggedRobot(BaseTask):
             else:
                 self.terrain = Terrain(self.cfg.terrain, self.num_train_envs)
 
-        if mesh_type == "plane":
-            self._create_ground_plane()
+        # if mesh_type == "plane":
+        self._create_ground_plane()
         if mesh_type == 'trimesh':
             self._create_trimesh()
         elif mesh_type not in [None, "plane"]:
@@ -1378,7 +1384,7 @@ class LeggedRobot(BaseTask):
         tm_params = gymapi.TriangleMeshParams()
         tm_params.transform.p.x = 0.0
         tm_params.transform.p.y = 0.0
-        tm_params.transform.p.z = 0.0
+        tm_params.transform.p.z = -0.01
         tm_params.static_friction = self.cfg.terrain.static_friction
         tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction
         tm_params.restitution = self.cfg.terrain.restitution
@@ -1510,6 +1516,7 @@ class LeggedRobot(BaseTask):
         self.actor_handles = []
         self.imu_sensor_handles = []
         self.envs = []
+        self.camera_handles = []
 
         self.default_friction = rigid_shape_props_asset[1].friction
         self.default_restitution = rigid_shape_props_asset[1].restitution
@@ -1568,6 +1575,19 @@ class LeggedRobot(BaseTask):
                 self.gym.create_actor(env_handle, h_wall_asset, wall_pose, "wall_front", i, 0, 0)
                 
                 self.num_actor += 4 """
+            
+            if self.cfg.env.record_all_envs:
+                camera_props = gymapi.CameraProperties()
+                # camera_props.enable_tensors = True
+                camera_props.width = self.cfg.env.recording_width_px
+                camera_props.height = self.cfg.env.recording_height_px
+                # camera_props.horizontal_fov = self.cfg["env"]["camera"]["horizontal_fov"]
+                camera_handle = self.gym.create_camera_sensor(env_handle, camera_props)
+                local_transform = gymapi.Transform()
+                local_transform.p = gymapi.Vec3(-0.8, 0, 0.25)
+                # local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(angle))
+                self.gym.attach_camera_to_body(camera_handle, env_handle, anymal_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
+                self.camera_handles.append(camera_handle)
 
             # adding arrow to visualize the goal position
             arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
@@ -1628,6 +1648,18 @@ class LeggedRobot(BaseTask):
         img = self.gym.get_camera_image(self.sim, self.envs[0], self.rendering_camera, gymapi.IMAGE_COLOR)
         w, h = img.shape
         return img.reshape([w, h // 4, 4])
+    
+    def render_all_envs(self):
+        if not self.cfg.env.record_all_envs:
+            return None
+        else:
+            video_frames = []
+            for i, c in enumerate(self.camera_handles):
+                video_frame = self.gym.get_camera_image(self.sim, self.envs[i], c, gymapi.IMAGE_COLOR)
+                video_frame = video_frame.reshape((self.cfg.env.recording_height_px, self.cfg.env.recording_width_px, 4))
+                video_frames.append(video_frame)
+
+            return video_frames
     
     def get_height_frame(self, env_id):
         elevation_map = self.measured_heights[env_id].cpu().numpy()
