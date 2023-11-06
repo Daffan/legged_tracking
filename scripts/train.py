@@ -64,6 +64,7 @@ def train_go1(headless=True):
 
     Cfg.env.num_observation_history = args.num_history
     Cfg.env.look_from_back = True
+    Cfg.env.viewer_look_at_robot = False
     Cfg.env.terminate_end_of_trajectory = False
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = args.rotate_camera
@@ -73,8 +74,8 @@ def train_go1(headless=True):
 
     # asset
     # change to not terminate on, but just penalize base contact, 
-    Cfg.asset.penalize_contacts_on = ["thigh", "calf"]
-    Cfg.asset.terminate_after_contacts_on = ["base"]
+    Cfg.asset.penalize_contacts_on = ["thigh", "calf", "base"]
+    Cfg.asset.terminate_after_contacts_on = []
 
     # rewards
     Cfg.rewards.T_reach = args.t_reach
@@ -93,7 +94,9 @@ def train_go1(headless=True):
     Cfg.reward_scales.action_rate = -1e-3 * penalty_scaler
     Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
     Cfg.reward_scales.collision = -1.0 * penalty_scaler
-    Cfg.reward_scales.height = -2.0 * penalty_scaler
+    Cfg.reward_scales.base_height = -2.0 * penalty_scaler
+    Cfg.reward_scales.orientation = -0.0 * penalty_scaler
+    Cfg.reward_scales.ang_vel_xy = -0.01 * penalty_scaler  # I don't know why, but this ang_vel_xy turns out to be very large...
     # task reward scales
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.reaching_roll = 0.0
@@ -121,7 +124,7 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_x = 0.9
         Cfg.terrain.terrain_ratio_y = 0.5
         Cfg.terrain.ceiling_height = 0.8
-        Cfg.terrain.start_loc = 0.35
+        Cfg.terrain.start_loc = 0.32
         Cfg.env.episode_length_s = 10.0
         # single path do not need planning
         Cfg.commands.sampling_based_planning = False
@@ -142,6 +145,7 @@ def train_go1(headless=True):
     Cfg.commands.traj_function = "fixed_target"
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
+    Cfg.commands.switch_dist = 0.1
     Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
 
     if args.blind:
@@ -163,6 +167,7 @@ def train_go1(headless=True):
     RunnerArgs.resume = args.resume
     gpu_id = args.device
     env = TrajectoryTrackingEnv(sim_device=f"cuda:{gpu_id}", headless=args.headless, cfg=Cfg)
+    env.reset()
 
     if args.wandb:
         wandb.init(
@@ -174,16 +179,16 @@ def train_go1(headless=True):
 
     env = HistoryWrapper(env)
 
-    import time
+    """ import time
     print("Is recording?", env.record_now)
     env.pause_recording()
     start = time.time()
     for i in range(100):
         print(i, end='\r')
-        action = torch.rand(4000, 12).to("cuda:0")
+        action = torch.rand(Cfg.env.num_envs, 12).to("cuda:0") / 5.0
         env.step(action)
-    print(1000 * 4000 / (time.time() - start))
-    import ipdb; ipdb.set_trace()
+    print(1000 * Cfg.env.num_envs / (time.time() - start))
+    import ipdb; ipdb.set_trace() """
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
     runner.learn(num_learning_iterations=5000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)

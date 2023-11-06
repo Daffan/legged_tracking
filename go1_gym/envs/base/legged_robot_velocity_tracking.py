@@ -1002,7 +1002,6 @@ class LeggedRobot(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-        import ipdb; ipdb.set_trace()
 
         # base yaws
         init_yaws = torch_rand_float(-cfg.terrain.yaw_init_range,
@@ -1731,7 +1730,6 @@ class LeggedRobot(BaseTask):
             self.env_origins[env_ids, 0] = spacing * xx.flatten()[:len(env_ids)]
             self.env_origins[env_ids, 1] = spacing * yy.flatten()[:len(env_ids)]
             self.env_origins[env_ids, 2] = 0.
-        import ipdb; ipdb.set_trace()
 
     def _parse_cfg(self, cfg):
         self.dt = self.cfg.control.decimation * self.sim_params.dt

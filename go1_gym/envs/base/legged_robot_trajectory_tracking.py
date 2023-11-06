@@ -74,8 +74,8 @@ class LeggedRobot(BaseTask):
         self.prev_base_lin_vel = self.base_lin_vel.clone()
         # self.prev_foot_velocities = self.foot_velocities.clone()
         self.render_gui()
-        import time
-        start_time = time.time()
+        """ import time
+        start_time = time.time() """
 
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.actions).view(self.torques.shape)
@@ -85,21 +85,21 @@ class LeggedRobot(BaseTask):
             self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
 
-        post_forward_sim_time = time.time()
+        """ post_forward_sim_time = time.time()
         try:
             self.forward_sim_time.append(-start_time + post_forward_sim_time)
         except:
             self.forward_sim_time = []
             self.forward_sim_time.append(-start_time + post_forward_sim_time)
-        print("forward_sim_time", np.mean(self.forward_sim_time))
+        print("forward_sim_time", np.mean(self.forward_sim_time)) """
         
         self.post_physics_step()
-        try:
+        """ try:
             self.post_phyics_time.append(time.time() - post_forward_sim_time)
         except:
             self.post_phyics_time = []
             self.post_phyics_time.append(time.time() - post_forward_sim_time)
-        print("post_phyics_time", np.mean(self.post_phyics_time))
+        print("post_phyics_time", np.mean(self.post_phyics_time)) """
 
         # return clipped obs, clipped states (None), rewards, dones and infos
         clip_obs = self.cfg.normalization.clip_observations
@@ -1396,19 +1396,33 @@ class LeggedRobot(BaseTask):
         """ Adds a triangle mesh terrain to the simulation, sets parameters based on the cfg.
         # """
         tm_params = gymapi.TriangleMeshParams()
-        tm_params.nb_vertices = self.terrain.vertices.shape[0]
-        tm_params.nb_triangles = self.terrain.triangles.shape[0]
+        tm_params.nb_vertices = self.terrain.vertices_top.shape[0]
+        tm_params.nb_triangles = self.terrain.triangles_top.shape[0]
 
-        tm_params.transform.p.x = -self.terrain.cfg.border_size
-        tm_params.transform.p.y = -self.terrain.cfg.border_size
+        tm_params.transform.p.x = 0.0
+        tm_params.transform.p.y = 0.0
         tm_params.transform.p.z = 0.0
         tm_params.static_friction = self.cfg.terrain.static_friction
         tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction
         tm_params.restitution = self.cfg.terrain.restitution
-        self.gym.add_triangle_mesh(self.sim, self.terrain.vertices.flatten(order='C'),
-                                   self.terrain.triangles.flatten(order='C'), tm_params)
-        self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows,
-                                                                            self.terrain.tot_cols).to(self.device)
+        self.gym.add_triangle_mesh(self.sim, self.terrain.vertices_top.flatten(order='C'),
+                                   self.terrain.triangles_top.flatten(order='C'), tm_params)
+        
+
+        tm_params = gymapi.TriangleMeshParams()
+        tm_params.nb_vertices = self.terrain.vertices_bottom.shape[0]
+        tm_params.nb_triangles = self.terrain.triangles_bottom.shape[0]
+
+        tm_params.transform.p.x = 0.0
+        tm_params.transform.p.y = 0.0
+        tm_params.transform.p.z = 0.0
+        tm_params.static_friction = self.cfg.terrain.static_friction
+        tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction
+        tm_params.restitution = self.cfg.terrain.restitution
+        self.gym.add_triangle_mesh(self.sim, self.terrain.vertices_bottom.flatten(order='C'),
+                                   self.terrain.triangles_bottom.flatten(order='C'), tm_params)
+                                   
+        self.height_samples = torch.tensor(self.terrain.height_field_raw).view(2, self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
 
 
     def _create_envs(self):
@@ -1556,8 +1570,8 @@ class LeggedRobot(BaseTask):
                 self.num_actor += 4 """
 
             # adding arrow to visualize the goal position
-            """ arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
-            self.num_actor += 1 """
+            arrow = self.gym.create_actor(env_handle, arrow_asset, start_pose, "arrow_%d" %i, i, self.cfg.asset.self_collisions, 0)
+            self.num_actor += 1
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
 

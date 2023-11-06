@@ -136,7 +136,12 @@ class Terrain:
                 v_top_bottom.append(v); t_top_bottom.append(t)
             self.vertices.append(v_top_bottom); self.triangles.append(t_top_bottom)
 
-        self.vertices_raw, self.triangles_raw = terrain_utils.convert_heightfield_to_trimesh(self.height_field_raw,
+        self.vertices_top, self.triangles_top = terrain_utils.convert_heightfield_to_trimesh(self.height_field_raw[0],
+                                                                                         self.cfg.horizontal_scale,
+                                                                                         self.cfg.vertical_scale,
+                                                                                         0.9)
+        
+        self.vertices_bottom, self.triangles_bottom = terrain_utils.convert_heightfield_to_trimesh(self.height_field_raw[1],
                                                                                          self.cfg.horizontal_scale,
                                                                                          self.cfg.vertical_scale,
                                                                                          0.9)
