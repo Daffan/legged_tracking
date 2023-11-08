@@ -44,6 +44,10 @@ class RewardsCrawling:
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
         return torch.sum(torch.square(self.env.base_ang_vel[:, :2]), dim=1)
+    
+    def _reward_orientation(self):
+        # Penalize non flat base orientation
+        return torch.sum(torch.square(self.env.projected_gravity[:, :2]), dim=1)
 
     # TODO: consider adding foot to body center
 
@@ -82,6 +86,15 @@ class RewardsCrawling:
             return torch.sum(torch.abs(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
         if self.env.cfg.rewards.lin_vel_form == "l2":
             return torch.sum(torch.square(target_linear_vel - self.env.base_lin_vel[:, :2]), dim=-1)
+        if self.env.cfg.rewards.lin_vel_form == "prod":
+            base_vel_magnitude = torch.linalg.norm(self.env.base_lin_vel[:, :2], dim=1, keepdim=True)
+            # import ipdb; ipdb.set_trace()
+            rew = target_linear_vel / self.env.cfg.rewards.target_lin_vel * self.env.base_lin_vel[:, :2] / (base_vel_magnitude + EPSILON)
+            rew = torch.sum(rew, dim=-1)
+            rew *= (base_vel_magnitude.flatten() > self.env.cfg.rewards.small_vel_threshold)
+            # if reached the target, reward the velocity to be small
+            rew += torch.exp(-base_vel_magnitude.flatten() ** 2/self.env.cfg.rewards.tracking_sigma_lin) * (magnitude.flatten() < self.env.cfg.rewards.lin_reaching_criterion)
+            return rew
         
     def _reward_exploration_yaw(self):
         ''' rewarding the angular velocity to be close to

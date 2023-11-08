@@ -57,6 +57,7 @@ def train_go1(headless=True):
         Cfg.env.num_observations = 265 if args.measure_front_half else 507
         Cfg.env.num_observations += int(args.timestep_in_obs)
         Cfg.env.num_scalar_observations = Cfg.env.num_observations
+    Cfg.env.num_privileged_obs = 2
 
     Cfg.terrain.measured_points_x = np.linspace(-1, 1, 21)
     Cfg.terrain.measured_points_y = np.linspace(-0.5, 0.5, 11)
@@ -96,10 +97,10 @@ def train_go1(headless=True):
     Cfg.reward_scales.torques = -1e-5 * penalty_scaler
     Cfg.reward_scales.action_rate = -1e-3 * penalty_scaler
     Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
-    Cfg.reward_scales.collision = -1.0 * penalty_scaler
-    Cfg.reward_scales.base_height = -2.0 * penalty_scaler
-    Cfg.reward_scales.orientation = -0.0 * penalty_scaler
-    Cfg.reward_scales.ang_vel_xy = -0.01 * penalty_scaler  # I don't know why, but this ang_vel_xy turns out to be very large...
+    Cfg.reward_scales.collision = -5.0 * penalty_scaler
+    Cfg.reward_scales.base_height = -args.r_base_height * penalty_scaler
+    Cfg.reward_scales.orientation = -args.r_orientation * penalty_scaler
+    Cfg.reward_scales.ang_vel_xy = -args.r_ang_vel * penalty_scaler  # I don't know why, but this ang_vel_xy turns out to be very large...
     # task reward scales
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.reaching_roll = 0.0
@@ -149,7 +150,7 @@ def train_go1(headless=True):
     Cfg.commands.traj_function = "fixed_target"
     Cfg.commands.traj_length = 1
     Cfg.commands.num_interpolation = 1
-    Cfg.commands.switch_dist = 0.1
+    Cfg.commands.switch_dist = 0.2
     Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
 
     if args.blind:
@@ -168,8 +169,60 @@ def train_go1(headless=True):
             Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 2 + 4
 
     # domain randomization stuff
-    if args.no_domain_rand:
-        Cfg.domain_rand.push_robots = False
+    #if args.no_domain_rand:
+    #    Cfg.domain_rand.push_robots = False
+
+    Cfg.domain_rand.lag_timesteps = 6
+    Cfg.domain_rand.randomize_lag_timesteps = True
+    Cfg.control.control_type = "actuator_net"
+
+    Cfg.domain_rand.randomize_rigids_after_start = False
+    Cfg.env.priv_observe_motion = False
+    Cfg.env.priv_observe_gravity_transformed_motion = False
+    Cfg.domain_rand.randomize_friction_indep = False
+    Cfg.env.priv_observe_friction_indep = False
+    Cfg.domain_rand.randomize_friction = True
+    Cfg.env.priv_observe_friction = True
+    Cfg.domain_rand.friction_range = [0.1, 3.0]
+    Cfg.domain_rand.randomize_restitution = True
+    Cfg.env.priv_observe_restitution = True
+    Cfg.domain_rand.restitution_range = [0.0, 0.4]
+    Cfg.domain_rand.randomize_base_mass = True
+    Cfg.env.priv_observe_base_mass = False
+    Cfg.domain_rand.added_mass_range = [-1.0, 3.0]
+    Cfg.domain_rand.randomize_gravity = True
+    Cfg.domain_rand.gravity_range = [-1.0, 1.0]
+    Cfg.domain_rand.gravity_rand_interval_s = 8.0
+    Cfg.domain_rand.gravity_impulse_duration = 0.99
+    Cfg.env.priv_observe_gravity = False
+    Cfg.domain_rand.randomize_com_displacement = False
+    Cfg.domain_rand.com_displacement_range = [-0.15, 0.15]
+    Cfg.env.priv_observe_com_displacement = False
+    Cfg.domain_rand.randomize_ground_friction = True
+    Cfg.env.priv_observe_ground_friction = False
+    Cfg.env.priv_observe_ground_friction_per_foot = False
+    Cfg.domain_rand.ground_friction_range = [0.0, 0.0]
+    Cfg.domain_rand.randomize_motor_strength = True
+    Cfg.domain_rand.motor_strength_range = [0.9, 1.1]
+    Cfg.env.priv_observe_motor_strength = False
+    Cfg.domain_rand.randomize_motor_offset = True
+    Cfg.domain_rand.motor_offset_range = [-0.02, 0.02]
+    Cfg.env.priv_observe_motor_offset = False
+    Cfg.domain_rand.push_robots = False
+    Cfg.domain_rand.randomize_Kp_factor = False
+    Cfg.env.priv_observe_Kp_factor = False
+    Cfg.domain_rand.randomize_Kd_factor = False
+    Cfg.env.priv_observe_Kd_factor = False
+    Cfg.env.priv_observe_body_velocity = False
+    Cfg.env.priv_observe_body_height = False
+    Cfg.env.priv_observe_desired_contact_states = False
+    Cfg.env.priv_observe_contact_forces = False
+    Cfg.env.priv_observe_foot_displacement = False
+    Cfg.env.priv_observe_gravity_transformed_foot_displacement = False
+
+    Cfg.normalization.friction_range = [0, 1]
+    Cfg.normalization.ground_friction_range = [0, 1]
+    Cfg.normalization.clip_actions = 10.0
     
     RunnerArgs.save_video_interval = 500
     RunnerArgs.resume = args.resume
@@ -235,11 +288,14 @@ if __name__ == '__main__':
     parser.add_argument("--no_domain_rand", action="store_true")
 
     # reward setting
-    parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp"])
+    parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp", "prod"])
     parser.add_argument("--r_explore_lin", type=float, default=1.0)
     parser.add_argument("--r_explore_yaw", type=float, default=0.4)
     parser.add_argument("--penalty_scaler", type=float, default=1.0)
     parser.add_argument("--only_positive", action="store_true")
+    parser.add_argument("--r_orientation", type=float, default=5.0)
+    parser.add_argument("--r_base_height", type=float, default=20.0)
+    parser.add_argument("--r_ang_vel", type=float, default=0.001)
     parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")
 
     args = parser.parse_args()

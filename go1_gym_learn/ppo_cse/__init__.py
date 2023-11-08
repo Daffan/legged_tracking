@@ -149,11 +149,11 @@ class Runner:
         for it in range(tot_iter):
             start = time.time()
             # Rollout
-            if torch.sum(self.env.reached_env_buf.float()) > 0:
+            """ if torch.sum(self.env.reached_env_buf.float()) > 0:
                 success_collision = torch.sum(self.env.collision_env_buf.float() * self.env.reached_env_buf.float()) / torch.sum(self.env.reached_env_buf.float())
                 success_collision = success_collision.item()
             else:
-                success_collision = "NaN"
+                success_collision = "NaN" """
             # print(it * self.num_steps_per_env, "success: ", torch.mean(self.env.reached_env_buf.float()).item(), " collision", success_collision)
             with torch.inference_mode():
                 for i in range(self.num_steps_per_env):

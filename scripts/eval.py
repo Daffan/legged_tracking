@@ -153,16 +153,25 @@ def play_go1(args):
         measured_pitchs[i] = env.base_rotation[0, 1]
         joint_positions[i] = env.dof_pos[0, :].cpu()
 
-    # """
-    video_frames = np.stack(video_frames)
+
+    video_frames = np.stack(video_frames).astype(np.uint8)
     video_frames = video_frames.transpose(1, 0, 2, 3, 4)
+    fps = 25
+    """
     for i, frames in enumerate(video_frames):
-        fps = 25
-        out = cv2.VideoWriter(f'media/videos/env_{i}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frames[0].shape[1], frames[0].shape[0]), True)
+        out = cv2.VideoWriter(f'media/videos/env_{i}.avi', cv2.VideoWriter_fourcc(*'XVID'), fps, (frames[0].shape[1], frames[0].shape[0]))
         for frame in frames:
-            out.write(frame[:, :, :3])
+            out.write(frame)
         out.release()
-    # """ 
+    """ 
+    import imageio
+    for i, frames in enumerate(video_frames):
+        output_video_path = f'media/videos/env_{i}.mp4'
+        video_writer = imageio.get_writer(output_video_path, fps=fps)
+        for frame in frames:
+            video_writer.append_data(frame)
+        video_writer.close()
+
     # plot target and measured forward velocity
     from matplotlib import pyplot as plt
     fig, axs = plt.subplots(3, 1, figsize=(12, 7))
@@ -198,3 +207,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     play_go1(args)
+
+    # some commands:
+    # tar -zcvf media/videos.tar.gz media/videos

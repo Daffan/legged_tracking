@@ -91,15 +91,16 @@ class LeggedRobot(BaseTask):
         except:
             self.forward_sim_time = []
             self.forward_sim_time.append(-start_time + post_forward_sim_time)
-        print("forward_sim_time", np.mean(self.forward_sim_time)) """
+        print("forward_sim_time", self.forward_sim_time[-1])  """
         
         self.post_physics_step()
+
         """ try:
             self.post_phyics_time.append(time.time() - post_forward_sim_time)
         except:
             self.post_phyics_time = []
             self.post_phyics_time.append(time.time() - post_forward_sim_time)
-        print("post_phyics_time", np.mean(self.post_phyics_time)) """
+        print("post_phyics_time", self.post_phyics_time[-1]) """
 
         # return clipped obs, clipped states (None), rewards, dones and infos
         clip_obs = self.cfg.normalization.clip_observations
@@ -751,7 +752,16 @@ class LeggedRobot(BaseTask):
         # Update the realtive target poses at every timestep
         # measure terrain heights
         if self.cfg.env.observe_heights:
+            """ import time
+            start = time.time() """
             self.measured_heights = self._get_heights(torch.arange(self.num_envs, device=self.device))
+            """ end = time.time()
+            try:
+                self.get_heights_time.append(end - start)
+            except:
+                self.get_heights_time = []
+                self.get_heights_time.append(end - start)
+            print("get_heights_time", self.get_heights_time[-1]) """
 
         env_ids = torch.arange(self.num_envs).to(self.device)
         self._plan_target_pose(env_ids)
@@ -1584,9 +1594,9 @@ class LeggedRobot(BaseTask):
                 # camera_props.horizontal_fov = self.cfg["env"]["camera"]["horizontal_fov"]
                 camera_handle = self.gym.create_camera_sensor(env_handle, camera_props)
                 local_transform = gymapi.Transform()
-                local_transform.p = gymapi.Vec3(-0.8, 0, 0.25)
-                # local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(angle))
-                self.gym.attach_camera_to_body(camera_handle, env_handle, anymal_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
+                local_transform.p = gymapi.Vec3(-0.8, 0, 0.40)
+                local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,1,0), np.radians(30.0))
+                self.gym.attach_camera_to_body(camera_handle, env_handle, anymal_handle, local_transform, gymapi.FOLLOW_POSITION)
                 self.camera_handles.append(camera_handle)
 
             # adding arrow to visualize the goal position
@@ -1886,6 +1896,7 @@ class LeggedRobot(BaseTask):
                 points = quat_apply(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
             else:
                 points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+            points = self.height_points[env_ids]
             points[..., :2] += self.root_states[::self.num_actor][env_ids, None, None, :2]  # bring points to the world frame
             points -= self.env_terrain_origin[env_ids, None, None, :]  # bring points to the env frame
             # TODO: get the actual position of the camera
@@ -1895,12 +1906,20 @@ class LeggedRobot(BaseTask):
             px = torch.clip(px, 0, self.env_height_samples.shape[2]-2)
             py = torch.clip(py, 0, self.env_height_samples.shape[3]-2)
 
-            heights1 = torch.stack([self.env_height_samples[env_id, :, px[env_id], py[env_id]] for env_id in env_ids], dim=0)
-            heights2 = torch.stack([self.env_height_samples[env_id, :, px[env_id]+1, py[env_id]] for env_id in env_ids], dim=0)
-            heights3 = torch.stack([self.env_height_samples[env_id, :, px[env_id], py[env_id]+1] for env_id in env_ids], dim=0)
+            # import ipdb; ipdb.set_trace()
+            # heights = torch.stack([self.env_height_samples[env_id, :, px[env_id], py[env_id]] for env_id in env_ids], dim=0)
+            heights = stack_heights(self.env_height_samples, px, py)
 
-            heights = torch.min(heights1, heights2)
-            heights = torch.min(heights, heights3)
+            # heights2 = torch.stack([self.env_height_samples[env_id, :, px[env_id]+1, py[env_id]] for env_id in env_ids], dim=0)
+            # heights3 = torch.stack([self.env_height_samples[env_id, :, px[env_id], py[env_id]+1] for env_id in env_ids], dim=0)
+
+            # heights = torch.min(heights1, heights2)
+            # heights = torch.min(heights, heights3)
             # heights = heights * self.terrain.vertical_scale
 
         return heights
+
+@torch.jit.script
+def stack_heights(env_height_samples, px, py):
+    num_envs = env_height_samples.shape[0]
+    return torch.stack([env_height_samples[env_id, :, px[env_id], py[env_id]] for env_id in range(num_envs)], dim=0)
