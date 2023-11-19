@@ -369,7 +369,16 @@ class LeggedRobot(BaseTask):
             if self.cfg.env.timestep_in_obs:
                 self.obs_buf = torch.cat((self.obs_buf,
                                           self.episode_length_buf.unsqueeze(1) / self.max_episode_length), dim=-1)
-            
+        # compute running statistics of the obs, log running mean and std
+        """ try:
+            self.obs_mean = self.obs_mean * 0.99 + torch.mean(self.obs_buf, dim=0) * 0.01
+            self.obs_std = self.obs_std * 0.99 + torch.std(self.obs_buf, dim=0) * 0.01
+        except:
+            self.obs_mean = torch.mean(self.obs_buf, dim=0)
+            self.obs_std = torch.std(self.obs_buf, dim=0)
+        print("obs_mean", self.obs_mean)
+        print("obs_std", self.obs_std) """
+
         if self.cfg.env.observe_heights:
             # take the second half as front
             if self.cfg.terrain.measure_front_half:
@@ -379,7 +388,7 @@ class LeggedRobot(BaseTask):
             measured_heights_front = self.measured_heights[:, :, x_start:, :]
             if self.cfg.env.camera_zero:
                 measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
-                measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.2)
+                measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.3)
             else:
                 measured_heights_front = torch.clip(measured_heights_front, min=0, max=self.cfg.terrain.ceiling_height)
                 # to the range of [-0.5, 0.5]
@@ -387,6 +396,16 @@ class LeggedRobot(BaseTask):
                 measured_heights_front -= 0.5
 
             measured_heights_front = measured_heights_front.reshape(self.num_train_envs, -1) * self.obs_scales.height_measurements
+            """ # compute running statistics of the measured height, log running mean and std
+            try:
+                self.measured_heights_mean = self.measured_heights_mean * 0.99 + torch.mean(measured_heights_front, dim=0) * 0.01
+                self.measured_heights_std = self.measured_heights_std * 0.99 + torch.std(measured_heights_front, dim=0) * 0.01
+            except:
+                self.measured_heights_mean = torch.mean(measured_heights_front, dim=0)
+                self.measured_heights_std = torch.std(measured_heights_front, dim=0)
+            print("measured_heights_mean", self.measured_heights_mean)
+            print("measured_heights_std", self.measured_heights_std) """
+
             self.obs_buf = torch.cat((
                 self.obs_buf, measured_heights_front), dim=-1)
 

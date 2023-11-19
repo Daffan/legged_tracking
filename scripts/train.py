@@ -80,11 +80,9 @@ def train_go1(headless=True):
     Cfg.asset.terminate_after_contacts_on = []
 
     # rewards
-    Cfg.rewards.T_reach = args.t_reach
-    Cfg.rewards.large_dist_threshold = 0.5
     Cfg.rewards.small_vel_threshold = 0.1
-    Cfg.rewards.lin_reaching_criterion = 0.1
-    Cfg.rewards.ang_reaching_criterion = np.pi / 10.0
+    Cfg.rewards.lin_reaching_criterion = 0.3
+    Cfg.rewards.ang_reaching_criterion = np.pi / 20.0
     Cfg.rewards.only_positive_rewards = args.only_positive
     Cfg.rewards.use_terminal_body_height = True
     Cfg.rewards.terminal_body_height = args.terminal_body_height
@@ -100,14 +98,15 @@ def train_go1(headless=True):
     Cfg.reward_scales.collision = -5.0 * penalty_scaler
     Cfg.reward_scales.base_height = -args.r_base_height * penalty_scaler
     Cfg.reward_scales.orientation = -args.r_orientation * penalty_scaler
-    Cfg.reward_scales.ang_vel_xy = -args.r_ang_vel * penalty_scaler  # I don't know why, but this ang_vel_xy turns out to be very large...
+    Cfg.reward_scales.ang_vel_xy = -args.r_ang_vel * penalty_scaler
     # task reward scales
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.reaching_roll = 0.0
     Cfg.reward_scales.reaching_pitch = 0.0
     if args.strategy == "e2e":
         Cfg.reward_scales.e2e = args.r_task
-        Cfg.rewards.exploration_steps = args.exploration_steps  # decay only applies for e2e
+        Cfg.rewards.T_reach = args.t_reach
+        Cfg.rewards.exploration_steps = args.exploration_iters * 24  # decay only applies for e2e
     elif args.strategy == "pms":  # parameterized motor skill
         # TODO: put a positive number here
         Cfg.reward_scales.reaching_z = 0.0
@@ -130,6 +129,8 @@ def train_go1(headless=True):
         Cfg.terrain.terrain_ratio_y = 0.5
         Cfg.terrain.ceiling_height = 0.8
         Cfg.terrain.start_loc = 0.32
+        Cfg.terrain.p_flat = 0.0 if args.empty_tunnel else 0.9
+        Cfg.terrain.p_double = 0.6
         Cfg.env.episode_length_s = 10.0
         # single path do not need planning
         Cfg.commands.sampling_based_planning = False
@@ -147,11 +148,17 @@ def train_go1(headless=True):
         Cfg.commands.sampling_based_planning = True
         Cfg.commands.plan_interval = 100
         
-    Cfg.commands.traj_function = "fixed_target"
-    Cfg.commands.traj_length = 1
-    Cfg.commands.num_interpolation = 1
-    Cfg.commands.switch_dist = 0.2
-    Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
+    if args.random_target:
+        Cfg.commands.traj_function = "random_target"
+        Cfg.commands.traj_length = 10
+        Cfg.commands.num_interpolation = 1
+        Cfg.commands.sampling_based_planning = False
+    else:
+        Cfg.commands.traj_function = "fixed_target"
+        Cfg.commands.traj_length = 1
+        Cfg.commands.num_interpolation = 1
+        Cfg.commands.switch_dist = 0.3
+        Cfg.commands.base_x = Cfg.terrain.terrain_length * Cfg.terrain.terrain_ratio_x - 1.0
 
     if args.blind:
         Cfg.env.observe_heights = False
@@ -230,6 +237,8 @@ def train_go1(headless=True):
     env = TrajectoryTrackingEnv(sim_device=f"cuda:{gpu_id}", headless=args.headless, cfg=Cfg)
     env.reset()
 
+    PPO_Args.learning_rate = args.learning_rate
+
     if args.wandb:
         wandb.init(
             project="go1_gym",
@@ -252,7 +261,7 @@ def train_go1(headless=True):
     import ipdb; ipdb.set_trace() """
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=5000000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
+    runner.learn(num_learning_iterations=200000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -274,9 +283,11 @@ if __name__ == '__main__':
     parser.add_argument("--old_ppo", action="store_true")
     parser.add_argument("--gru", action="store_true")
     parser.add_argument("--cnn", action="store_true")
+    parser.add_argument("--learning_rate", type=float, default=1e-3)
+    parser.add_argument("--exploration_iters", type=int, default=50000)
 
     # env setting
-    parser.add_argument("--command_type", default="xy_norm", choices=["xy", "6dof", "xy_norm"])
+    parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
     parser.add_argument("--timestep_in_obs", action="store_true")
     parser.add_argument("--num_history", type=int, default=1)
     parser.add_argument("--measure_front_half", action="store_true")
@@ -286,6 +297,8 @@ if __name__ == '__main__':
     parser.add_argument("--terminal_body_height", type=float, default=0.0)
     parser.add_argument("--terrain", default="single_path", choices=["single_path", "multi_path", "plane"])
     parser.add_argument("--no_domain_rand", action="store_true")
+    parser.add_argument("--empty_tunnel", action="store_true")
+    parser.add_argument("--random_target", action="store_true")
 
     # reward setting
     parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp", "prod"])
@@ -297,6 +310,7 @@ if __name__ == '__main__':
     parser.add_argument("--r_base_height", type=float, default=20.0)
     parser.add_argument("--r_ang_vel", type=float, default=0.001)
     parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")
+    parser.add_argument("--r_task", type=float, default=1.0)
 
     args = parser.parse_args()
 

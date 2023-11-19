@@ -182,7 +182,7 @@ class Terrain:
                 height_max=cfg.pyramid_height_max,
             )
         else:
-            self.terrain_fn(terrain, top=top)
+            self.terrain_fn(terrain, self.cfg, top=top)
 
         return terrain
 

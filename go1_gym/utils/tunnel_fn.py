@@ -41,7 +41,9 @@ def pyramid_from_points(points):
 
 class TerrainFunctions:
 
-    def single_path(terrain, top=True, p_flat=0.9, p_double=0.5):
+    def single_path(terrain, cfg, top=True):
+        p_flat = cfg.p_flat
+        p_double = cfg.p_double
         pixel_x, pixel_y = terrain.height_field_raw.shape
         l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
 
@@ -65,7 +67,6 @@ class TerrainFunctions:
                 height_max, height_min = 0.15, 0.3
             else:
                 height_max, height_min = 0.0, 0.0
-            height_max, height_min = 0.15, 0.30
             lw_low, lw_high = 0.1, 0.3
 
         mean_x = np.linspace(-w/2, w/2, 3)[1:-1]
