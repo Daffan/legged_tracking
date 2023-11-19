@@ -10,11 +10,13 @@ from isaacgym.torch_utils import *
 assert gymtorch
 import torch
 import numpy as np
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from go1_gym import MINI_GYM_ROOT_DIR
 from go1_gym.envs.base.base_task import BaseTask
 from go1_gym.utils.math_utils import quat_apply_yaw, wrap_to_pi, get_scale_shift, quat_without_yaw, quaternion_to_roll_pitch_yaw, quat_apply_yaw_inverse
-from go1_gym.utils.tunnel import Terrain
+from go1_gym.utils.tunnel import Terrain, plot_elevation_map
 from .legged_robot_trajectory_tracking_config import Cfg
 from go1_gym.envs.trajectories.trajectory_function import TrajectoryFunctions
 
@@ -381,6 +383,11 @@ class LeggedRobot(BaseTask):
 
         if self.cfg.env.observe_heights:
             # take the second half as front
+
+            """ if self.episode_length_buf[0].item() % 10 == 0:
+                elevation_map = self.measured_heights[0].cpu().numpy()
+                plot_elevation_map(elevation_map) """
+            
             if self.cfg.terrain.measure_front_half:
                 x_start = int(self.measured_heights.shape[2] // 2 + 1)
             else:
@@ -1689,7 +1696,7 @@ class LeggedRobot(BaseTask):
                 video_frames.append(video_frame)
 
             return video_frames
-    
+
     def get_height_frame(self, env_id):
         elevation_map = self.measured_heights[env_id].cpu().numpy()
         data = plot_elevation_map(elevation_map)

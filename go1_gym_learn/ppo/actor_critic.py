@@ -5,6 +5,8 @@ import torch.nn as nn
 from params_proto import PrefixProto
 from torch.distributions import Normal
 
+from go1_gym_learn.utils import RunningMeanStd
+
 
 class AC_Args(PrefixProto, cli=False):
     # policy
@@ -18,6 +20,8 @@ class AC_Args(PrefixProto, cli=False):
     env_factor_encoder_branch_input_dims = [18]
     env_factor_encoder_branch_latent_dims = [18]
     env_factor_encoder_branch_hidden_dims = [[256, 128]]
+    
+    normalize_obs = False
 
 
 class ActorCritic(nn.Module):
@@ -109,6 +113,10 @@ class ActorCritic(nn.Module):
         self.distribution = None
         # disable args validation for speedup
         Normal.set_default_validate_args = False
+        
+        self.normalize_obs = AC_Args.normalize_obs
+        if self.normalize_obs:
+            self.obs_rms = RunningMeanStd(shape=(num_obs,))
 
     @staticmethod
     # not used at the moment
@@ -157,8 +165,13 @@ class ActorCritic(nn.Module):
 
     def act_student(self, observations, observation_history, policy_info={}):
         latent = self.adaptation_module(observation_history)
+        import ipdb; ipdb.set_trace()
+        if self.normalize_obs:
+            observations = self.obs_rms.normalize(observations)
+            self.obs_rms.update(observations)
         actions_mean = self.actor_body(torch.cat((observations, latent), dim=-1))
         policy_info["latents"] = latent.detach().cpu().numpy()
+        
         return actions_mean
 
     def act_teacher(self, observations, privileged_info, policy_info={}):

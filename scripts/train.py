@@ -41,6 +41,7 @@ def train_go1(headless=True):
 
     AC_Args.use_gru = args.gru
     AC_Args.use_cnn = args.cnn
+    AC_Args.normalize_obs = args.normalize_obs
 
     config_go1(Cfg)
     # observation space
@@ -285,6 +286,7 @@ if __name__ == '__main__':
     parser.add_argument("--cnn", action="store_true")
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--exploration_iters", type=int, default=50000)
+    parser.add_argument("--normalize_obs", action="store_true")
 
     # env setting
     parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])

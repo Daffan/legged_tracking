@@ -3,6 +3,8 @@ import torch.nn as nn
 from params_proto import PrefixProto
 from torch.distributions import Normal
 
+from go1_gym_learn.utils import RunningMeanStd
+
 
 class AC_Args(PrefixProto, cli=False):
     # policy
@@ -14,6 +16,8 @@ class AC_Args(PrefixProto, cli=False):
     adaptation_module_branch_hidden_dims = [256, 128]
 
     use_decoder = False
+    
+    normalize_obs = False
 
 
 class ActorCritic(nn.Module):
@@ -85,6 +89,10 @@ class ActorCritic(nn.Module):
         self.distribution = None
         # disable args validation for speedup
         Normal.set_default_validate_args = False
+        
+        self.normalize_obs = AC_Args.normalize_obs
+        if self.normalize_obs:
+            self.obs_rms = RunningMeanStd(shape=(num_obs,))
 
     @staticmethod
     # not used at the moment
@@ -116,6 +124,10 @@ class ActorCritic(nn.Module):
         self.distribution = Normal(mean, mean * 0. + self.std)
 
     def act(self, observation_history, **kwargs):
+        # import ipdb; ipdb.set_trace()
+        if self.normalize_obs:
+            observation_history = self.obs_rms.normalize(observation_history)
+            self.obs_rms.update(observation_history)
         self.update_distribution(observation_history)
         return self.distribution.sample()
 

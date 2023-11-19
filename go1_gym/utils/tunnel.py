@@ -235,3 +235,87 @@ def visual_elevation_map(elevation_map, cfg):
     ax.set_box_aspect([ub - lb for lb, ub in (getattr(ax, f'get_{a}lim')() for a in 'xyz')])
 
     plt.show()
+
+
+import numpy as np
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+def plot_elevation_map(
+    elevationMap,
+    z_range=[0, 1],
+    size=[0.3762, 0.0935, 0.114],
+    scaler=0.1,
+    show_fig=True,
+    save_fig=False,
+):
+    """ Plot the elevation map
+    Args:
+        elevationMap: 3D numpy array of shape (2, n_pixel_x, n_pixel_y)
+        z_range: tuple of (min_z, max_z)
+        size: size of the robot (x, y, z)
+        scaler: horizontal scaler
+    """
+
+    height_points = []
+    for i in [0, 1]:
+        for x in range(elevationMap.shape[1]):
+            for y in range(elevationMap.shape[2]):
+                if z_range[0] <= elevationMap[i, x, y] < z_range[1]:
+                    height_points.append(np.array([
+                        (x - elevationMap.shape[1] // 2) * scaler,
+                        (y - elevationMap.shape[2] // 2) * scaler,
+                        elevationMap[i, x, y]
+                    ]))
+    height_points = np.stack(height_points)
+    if save_fig:
+        fig = plt.figure(figsize=(72, 36))    
+    else:
+        fig = plt.figure(figsize=(3.6, 2.4))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter3D(height_points[:, 0], height_points[:, 1], height_points[:, 2])
+
+    xx = size[0]/2.; yy = size[1]/2.; zz = size[2]/2.
+    cube = np.array([
+        [-xx, -yy, -zz],
+        [+xx, -yy, -zz],
+        [+xx, +yy, -zz],
+        [-xx, +yy, -zz],
+        [-xx, -yy, +zz],
+        [+xx, -yy, +zz],
+        [+xx, +yy, +zz],
+        [-xx, +yy, +zz],
+    ])
+
+    bottom = [0,1,2,3]
+    top    = [4,5,6,7]
+    front  = [0,1,5,4]
+    right  = [1,2,6,5]
+    back   = [2,3,7,6]
+    left   = [0,3,7,4]
+
+    surfs = np.stack([
+        cube[bottom], cube[top], cube[front], cube[right], cube[back], cube[left]
+    ])
+
+    wp = [0., 0., 0.34]; a = 0.3
+    surfs_rot = surfs + wp
+    ax.add_collection3d(Poly3DCollection(surfs_rot[[1]], facecolors='r', alpha=min(1.0, a*2)))
+    ax.add_collection3d(Poly3DCollection(surfs_rot[[0, 2, 3, 4, 5]], facecolors='r', alpha=a))
+    ax.set_box_aspect([ub - lb for lb, ub in (getattr(ax, f'get_{a}lim')() for a in 'xyz')])
+    if show_fig:
+        plt.show(block=True)
+        data = None
+    else:
+        if save_fig:
+            plt.savefig("elevation_map.png", dpi=300)
+            data = None
+        else:
+            fig.canvas.draw()
+            data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        
+    # plt.show(block=True)
+    plt.close()
+
+    return data
