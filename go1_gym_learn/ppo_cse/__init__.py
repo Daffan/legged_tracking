@@ -164,6 +164,8 @@ class Runner:
                                                                          privileged_obs[num_train_envs:])
                     else:
                         actions_eval = self.alg.actor_critic.act_student(obs_history[num_train_envs:])
+                    # print(actions_train[0])
+                    # import ipdb; ipdb.set_trace()
                     ret = self.env.step(torch.cat((actions_train, actions_eval), dim=0))
                     obs_dict, rewards, dones, infos = ret
                     obs, privileged_obs, obs_history = obs_dict["obs"], obs_dict["privileged_obs"], obs_dict[
@@ -180,14 +182,14 @@ class Runner:
                         info = infos['train/episode']
                         metrics = {k: np.mean(v) for k, v in info.items()}
                         metrics["fps"] = (it+1) * self.env.cfg.env.num_envs * self.num_steps_per_env / (time.time() - very_start)
-                        wandb.log({"train": metrics})
+                        wandb.log({"train": metrics}, step=it * 24 + i)
 
                     if 'eval/episode' in infos and log_wandb:
                         # with logger.Prefix(metrics="eval/episode"):
                         #     logger.store_metrics(**infos['eval/episode'])
                         info = infos['eval/episode']
                         metrics = {k: np.mean(v) for k, v in info.items()}
-                        wandb.log({"eval": metrics})
+                        wandb.log({"eval": metrics}, step=it * 24 + i)
 
                     if 'curriculum' in infos:
 
@@ -258,7 +260,7 @@ class Runner:
                 mean_adaptation_module_test_loss=mean_adaptation_module_test_loss
             )
             if log_wandb:
-                wandb.log({"metrics": store_metrics})
+                wandb.log({"metrics": store_metrics}, step=it * 24 + i)
 
             if self.runner_args.save_video_interval and log_wandb:
                 self.log_video(it)
@@ -331,7 +333,7 @@ class Runner:
             print("LOGGING VIDEO")
             # logger.save_video(frames, f"videos/{it:05d}.mp4", fps=1 / self.env.dt)
             frames_np = np.stack(frames).transpose(0, 3, 1, 2)
-            wandb.log({"train": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}})
+            wandb.log({"train": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}}, step=it)
 
         if self.env.num_eval_envs > 0:
             frames = self.env.get_complete_frames_eval()
@@ -340,7 +342,7 @@ class Runner:
                 print("LOGGING EVAL VIDEO")
                 # logger.save_video(frames, f"videos/{it:05d}_eval.mp4", fps=1 / self.env.dt)
                 frames_np = np.stack(frames).transpose(0, 3, 1, 2)
-                wandb.log({"eval": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}})
+                wandb.log({"eval": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}}, step=it)
 
     def get_inference_policy(self, device=None):
         self.alg.actor_critic.eval()  # switch to evaluation mode (dropout for example)

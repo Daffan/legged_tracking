@@ -169,17 +169,18 @@ class LeggedRobot(BaseTask):
         self._render_headless()
 
     def update_curriculum(self):
-        if "exploration_lin" in self.reward_scales and self.reward_scales["exploration_lin"] > 0:
+        if "exploration_lin" in self.reward_scales and "exploration_lin" in self.reward_scales.keys():
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
-                self.reward_scales["exploration_lin"] -= self.cfg.reward_scales.exploration_lin / self.cfg.rewards.exploration_steps
-                if self.reward_scales["exploration_lin"] <= 0:
-                    print("Exploration_lin reward disabled")
+                self.reward_scales["exploration_lin"] -= self.cfg.reward_scales.exploration_lin * self.dt / self.cfg.rewards.exploration_steps
+                self.reward_scales["exploration_lin"] = max(self.reward_scales["exploration_lin"], 0)
 
-        if "exploration_yaw" in self.reward_scales and self.reward_scales["exploration_yaw"] > 0:
+        if "exploration_yaw" in self.reward_scales and "exploration_yaw" in self.reward_scales.keys():
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
-                self.reward_scales["exploration_yaw"] -= self.cfg.reward_scales.exploration_yaw / self.cfg.rewards.exploration_steps
-                if self.reward_scales["exploration_yaw"] <= 0:
-                    print("Exploration_yaw reward disabled")
+                self.reward_scales["exploration_yaw"] -= self.cfg.reward_scales.exploration_yaw * self.dt / self.cfg.rewards.exploration_steps
+                self.reward_scales["exploration_yaw"] = max(self.reward_scales["exploration_yaw"], 0)
+            self.extras["train/episode"]["exploration_lin"] = self.reward_scales["exploration_lin"]
+            self.extras["train/episode"]["exploration_yaw"] = self.reward_scales["exploration_yaw"]
+            
 
         if self.cfg.curriculum_thresholds.cl_fix_target and \
             np.mean(self.extras["train/episode"]["reached"]) > \
@@ -341,6 +342,8 @@ class LeggedRobot(BaseTask):
         elif self.cfg.rewards.only_positive_rewards_ji22_style: #TODO: update
             self.rew_buf[:] = self.rew_buf_pos[:] * torch.exp(self.rew_buf_neg[:] / self.cfg.rewards.sigma_rew_neg)
         self.episode_sums["total"] += self.rew_buf
+        self.episode_sums["total_pos"] += self.rew_buf_pos
+        self.episode_sums["total_neg"] += self.rew_buf_neg
         # add termination reward after clipping
         if "termination" in self.reward_scales:
             rew = self.reward_container._reward_termination() * self.reward_scales["termination"]
@@ -1392,6 +1395,10 @@ class LeggedRobot(BaseTask):
             name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
             for name in self.reward_scales.keys()}
         self.episode_sums["total"] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device,
+                                                 requires_grad=False)
+        self.episode_sums["total_pos"] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device,
+                                                 requires_grad=False)
+        self.episode_sums["total_neg"] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device,
                                                  requires_grad=False)
         self.episode_sums_eval = {
             name: -1 * torch.ones(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)

@@ -64,6 +64,6 @@ class RunningMeanStd():
         """
         self.mean = self.mean.to(obs.device)
         self.var = self.var.to(obs.device)
-        print("mean: ", self.mean)
-        print("var: ", self.var)
+        # print("mean: ", self.mean)
+        # print("var: ", self.var)
         return (obs - self.mean) / torch.sqrt(self.var + 1e-4)

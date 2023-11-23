@@ -89,6 +89,7 @@ def train_go1(headless=True):
     Cfg.rewards.terminal_body_height = args.terminal_body_height
     Cfg.rewards.lin_vel_form = args.lin_vel_form
     Cfg.rewards.exploration_steps = +np.inf
+    Cfg.rewards.tracking_sigma_lin = 0.05
 
     # penalty reward scales
     penalty_scaler = args.penalty_scaler
@@ -96,7 +97,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.torques = -1e-5 * penalty_scaler
     Cfg.reward_scales.action_rate = -1e-3 * penalty_scaler
     Cfg.reward_scales.dof_pos_limits = -10.0 * penalty_scaler
-    Cfg.reward_scales.collision = -5.0 * penalty_scaler
+    Cfg.reward_scales.collision = -args.r_collision * penalty_scaler
     Cfg.reward_scales.base_height = -args.r_base_height * penalty_scaler
     Cfg.reward_scales.orientation = -args.r_orientation * penalty_scaler
     Cfg.reward_scales.ang_vel_xy = -args.r_ang_vel * penalty_scaler
@@ -104,6 +105,10 @@ def train_go1(headless=True):
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.reaching_roll = 0.0
     Cfg.reward_scales.reaching_pitch = 0.0
+    if args.strategy == "vel":
+        Cfg.reward_scales.e2e = 0
+        Cfg.rewards.T_reach = args.t_reach
+        Cfg.rewards.exploration_steps = 200000 * 24
     if args.strategy == "e2e":
         Cfg.reward_scales.e2e = args.r_task
         Cfg.rewards.T_reach = args.t_reach
@@ -262,7 +267,7 @@ def train_go1(headless=True):
     import ipdb; ipdb.set_trace() """
 
     runner = Runner(env, device=f"cuda:{gpu_id}", runner_args=RunnerArgs, ac_args=AC_Args, log_wandb=args.wandb)
-    runner.learn(num_learning_iterations=200000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
+    runner.learn(num_learning_iterations=10000, init_at_random_ep_len=True, eval_freq=100, update_model=not args.freeze_model)
 
 
 if __name__ == '__main__':
@@ -285,7 +290,7 @@ if __name__ == '__main__':
     parser.add_argument("--gru", action="store_true")
     parser.add_argument("--cnn", action="store_true")
     parser.add_argument("--learning_rate", type=float, default=1e-3)
-    parser.add_argument("--exploration_iters", type=int, default=50000)
+    parser.add_argument("--exploration_iters", type=int, default=2500)
     parser.add_argument("--normalize_obs", action="store_true")
 
     # env setting
@@ -313,6 +318,8 @@ if __name__ == '__main__':
     parser.add_argument("--r_ang_vel", type=float, default=0.001)
     parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")
     parser.add_argument("--r_task", type=float, default=1.0)
+    parser.add_argument("--r_collision", type=float, default=5.0)
+
 
     args = parser.parse_args()
 
