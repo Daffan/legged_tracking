@@ -245,12 +245,16 @@ def train_go1(headless=True):
 
     PPO_Args.learning_rate = args.learning_rate
 
+    # if logdir does not exist, create one
+    if not os.path.exists(args.logdir):
+        os.makedirs(args.logdir)
+
     if args.wandb:
         wandb.init(
             project="go1_gym",
             config=vars(Cfg),
             name=args.name,
-            dir="/var/local/zifan/wandb/legged_tracking"
+            dir=args.logdir
         )
 
     env = HistoryWrapper(env)
@@ -274,6 +278,7 @@ if __name__ == '__main__':
     from pathlib import Path
     from go1_gym import MINI_GYM_ROOT_DIR
     import argparse
+    import os
 
     parser = argparse.ArgumentParser()
     # user setting
@@ -283,6 +288,7 @@ if __name__ == '__main__':
     parser.add_argument("--resume", type=str, default='')
     parser.add_argument("--freeze_model", action="store_true")
     parser.add_argument("--device", default=0, type=int)
+    parser.add_argument("--logdir", type=str, default=os.path.join(MINI_GYM_ROOT_DIR, "logs", "go1"))
     parser.add_argument("--strategy", default="vel", choices=["e2e", "pms", "vel"])
 
     # training setting

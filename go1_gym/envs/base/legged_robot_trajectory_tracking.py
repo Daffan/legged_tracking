@@ -398,6 +398,8 @@ class LeggedRobot(BaseTask):
             measured_heights_front = self.measured_heights[:, :, x_start:, :]
             if self.cfg.env.camera_zero:
                 measured_heights_front -= self.root_states[::self.num_actor][..., 2:3, None, None]
+                camera_offset_z = torch.sin(self.camera_pitch_angle) * torch.norm(self.camera_offset[None, :], dim=-1)
+                measured_heights_front -= camera_offset_z[:, None, None, None]  # extra three dimensions for ceiling/floor, x, y
                 measured_heights_front = torch.clip(measured_heights_front, min=-0.3, max=0.3)
             else:
                 measured_heights_front = torch.clip(measured_heights_front, min=0, max=self.cfg.terrain.ceiling_height)
@@ -1187,6 +1189,7 @@ class LeggedRobot(BaseTask):
         self.base_pos = self.root_states[::self.num_actor][:self.num_envs, 0:3]
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[::self.num_actor][:self.num_envs, 3:7]
+        self.base_rotation = quaternion_to_roll_pitch_yaw(self.base_quat)
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_state)
         self.foot_positions = self.rigid_body_state.view(self.num_envs, -1, 13)[:, self.feet_indices,
                               0:3] - self.base_pos[:, None, :]  # this might not be correct
@@ -1216,6 +1219,8 @@ class LeggedRobot(BaseTask):
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)  # , self.eval_cfg)
         self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat(
             (self.num_envs, 1))
+        # camera's location relative from center of mass
+        self.camera_offset = torch.tensor([0.12, 0., 0.], dtype=torch.float, device=self.device, requires_grad=False)
         self.forward_vec = to_torch([1., 0., 0.], device=self.device).repeat((self.num_envs, 1))
         self.torques = torch.zeros(self.num_envs, self.num_dof, dtype=torch.float, device=self.device,
                                    requires_grad=False)
@@ -1925,12 +1930,18 @@ class LeggedRobot(BaseTask):
             bottom_heights = torch.zeros(len(env_ids), *self.elevation_map_shape, device=self.device, requires_grad=False) # sufficient space at the top
             heights = torch.stack([top_heights, bottom_heights], dim=1)
         else:
-            if self.cfg.env.rotate_camera:
+            if self.cfg.env.rotate_camera:  # please do not use rotate camera. The grid does not have a resolution that is high enough
                 points = quat_apply(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+                self.camera_pitch_angle = torch.zeros_like(self.base_rotation[env_ids, 1])
             else:
                 points = quat_apply_yaw(self.base_quat[env_ids, None, None, :].repeat(1, *self.elevation_map_shape, 1), self.height_points[env_ids])
+                self.camera_pitch_angle = self.base_rotation[env_ids, 1]
             points = self.height_points[env_ids]
             points[..., :2] += self.root_states[::self.num_actor][env_ids, None, None, :2]  # bring points to the world frame
+
+            if self.cfg.env.camera_zero:
+                camera_offset_xy = self.camera_offset[None, :2] * torch.cos(self.camera_pitch_angle[:, None])
+                points[..., :2] += camera_offset_xy[env_ids, None, None]  # bring points to the camera frame
             points -= self.env_terrain_origin[env_ids, None, None, :]  # bring points to the env frame
             # TODO: get the actual position of the camera
             points = (points / self.terrain.cfg.horizontal_scale).long()

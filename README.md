@@ -1,5 +1,22 @@
 # Go1 Sim-to-Real Locomotion Starter Kit
 
+# Training scripts
+Below is the deployable setting to the real world
+```
+python scripts/train.py --terrain single_path --measure_front_half --camera_zero --old_ppo --penalty_scaler 1.0 --strategy e2e --terminal_body_height 0.0 --wandb
+```
+Explaination of some arguments.
+* `--terrain`: chosen from `plane`, `single_path`, `multi_path`. `single_path` has two walls that create a single straight path for robot to navigate. `multi_path` has two further separated walls where the robot has to find a path to navigate. Definition of these terrain can be found here: `go1_gym/utils/tunnel_fn.py`. (`multi_path` not implemented yet.)
+* `--measure_front_half`: real-world setting where the camera only sees front square area (1 meter by 1 meter) with dimension 11 x 11.
+* `--camera_zero`: height measurement zeros at camera center (not rotated).
+* `--old_ppo`: I wrote a new PPO with CNN and GRU, but let's keep it simple for now.
+* `--penalty_scaler`: global scaling coefficient applied to all penalty terms defined in `go1_gym/envs/rewards/reward_crawling.py`. Original coefficients of these terms are the same as `https://github.com/leggedrobotics/legged_gym/tree/master`.
+* `--strategy`: chosen from `e2e`, `vel`, and `pms` (primitive motion skills). This flag decides the major optimzation objective. `e2e` only rewards the agent for remaining static at the goal. `vel` rewards the agent for moving toward the goal with a constant 0.5 m/s velocity. `pms` moving toward the local goal (6 DoF) with a constant linear/angular velocity and body orientation defined by local goal. (`pms` not tested yet).
+* `--terminal_body_height`: terminate when body height is lower than this value. Never terminate when it is `0.0`.
+* `--only_positive`: `r = max(0.0, r)`. This is a common trick, but I didn't apply it yet.
+* `--wandb`: logging with `wandb`.
+* More flags see `scripts/train.py`.
+
 # Customization
 ## To be implemented
 `go1_gym_deploy/envs/lcm_traj_agent.py` (line 152 - 159): get height measures
