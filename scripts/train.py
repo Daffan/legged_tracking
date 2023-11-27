@@ -328,7 +328,7 @@ if __name__ == '__main__':
     parser.add_argument("--r_explore_yaw", type=float, default=0.4)
     parser.add_argument("--penalty_scaler", type=float, default=1.0)
     parser.add_argument("--only_positive", action="store_true")
-    parser.add_argument("--r_orientation", type=float, default=5.0)
+    parser.add_argument("--r_orientation", type=float, default=0.0)
     parser.add_argument("--r_base_height", type=float, default=20.0)
     parser.add_argument("--r_ang_vel", type=float, default=0.001)
     parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")
