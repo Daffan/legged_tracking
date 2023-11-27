@@ -1,6 +1,6 @@
 # Go1 Sim-to-Real Locomotion Starter Kit
 
-# Training scripts
+## Training script
 Below is the deployable setting to the real world
 ```
 python scripts/train.py --terrain single_path --measure_front_half --camera_zero --old_ppo --penalty_scaler 1.0 --strategy e2e --terminal_body_height 0.0 --wandb
@@ -16,6 +16,13 @@ Explaination of some arguments.
 * `--only_positive`: `r = max(0.0, r)`. This is a common trick, but I didn't apply it yet.
 * `--wandb`: logging with `wandb`.
 * More flags see `scripts/train.py`.
+
+## Eval script
+You can find the logging under folder `logs/go1/wandb/<LOGGING_NAME>`. You can easily evaluate the trained policy by 
+```
+python scripts/eval.py --old_ppo --logdir logs/go1/wandb/<LOGGING_NAME>/files
+```
+This will run 16 evaluations in parallel and record the videos under `media/videos`. If you run on a machine with a monitor. It will also gives you velocity and body rotation profile for the first evaluation.
 
 # Customization
 ## To be implemented
