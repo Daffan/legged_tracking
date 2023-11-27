@@ -39,7 +39,7 @@ class RewardsCrawling:
         return torch.sum(torch.square(self.env.last_actions - self.env.actions), dim=1)
     
     def _reward_base_height(self):
-        return torch.square(self.env.relative_linear[:, 2] - self.env.cfg.rewards.base_height_target)
+        return torch.square(self.env.root_states[::self.env.num_actor][:, 2] - self.env.cfg.rewards.base_height_target)
     
     def _reward_ang_vel_xy(self):
         # Penalize xy axes base angular velocity
@@ -51,19 +51,28 @@ class RewardsCrawling:
 
     # TODO: consider adding foot to body center
 
+    def _reward_large_vel(self):
+        # Penalize large velocities larger than 0.5 m/s
+        magnitude = torch.norm(self.env.base_lin_vel[:, :2], dim=1) > 0.5
+        return torch.sum(torch.square(self.env.base_lin_vel[:, :2]), dim=1) * magnitude.float()
+
     # ---------------- task ----------------
 
     def _reward_e2e(self):
-        # when the distance is smaller than 0.5m and T > T_reach, perform velocity tracking
-        # this can help keep stable at goal position
         relative_linear = self.env.relative_linear[:, :2]
         magnitude = torch.norm(relative_linear, dim=1)
+        if self.env.cfg.env.terminate_end_of_trajectory:
+            # positive reward at the end of the trajectory
+            return (magnitude < self.env.cfg.commands.switch_dist) * self.env.max_episode_length  # self.env.episode_length_buf
+        else:
+            # when the distance is smaller than 0.5m and T > T_reach, perform velocity tracking
+            # this can help keep stable at goal position
 
-        reached = (magnitude < self.env.cfg.commands.switch_dist)
-        after_t_reach = self.env.episode_length_buf > self.env.cfg.rewards.T_reach
+            reached = (magnitude < self.env.cfg.commands.switch_dist)
+            after_t_reach = self.env.episode_length_buf > self.env.cfg.rewards.T_reach
 
-        linear_vel_error = torch.sum(torch.square(self.env.base_lin_vel[:, :2]), dim=-1)
-        return torch.exp(-linear_vel_error/self.env.cfg.rewards.tracking_sigma_lin) * reached.float() * after_t_reach.float()
+            linear_vel_error = torch.sum(torch.square(self.env.base_lin_vel[:, :2]), dim=-1)
+            return torch.exp(-linear_vel_error/self.env.cfg.rewards.tracking_sigma_lin) * reached.float() * after_t_reach.float()
     
     def _reward_exploration_lin(self):
         """ rewarding the linear velocity to be close to
@@ -105,7 +114,7 @@ class RewardsCrawling:
         return torch.exp(-ang_vel_error/self.env.cfg.rewards.tracking_sigma_ang)
         
     def _reward_reaching_z(self):
-        return torch.square(self.env.relative_linear[:, 2]) 
+        return torch.square(self.env.relative_linear[:, 2])
 
     def _reward_reaching_roll(self):
         return torch.square(self.env.relative_rotation[:, 0])

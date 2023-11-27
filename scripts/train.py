@@ -67,7 +67,7 @@ def train_go1(headless=True):
     Cfg.env.num_observation_history = args.num_history
     Cfg.env.look_from_back = True
     Cfg.env.viewer_look_at_robot = False
-    Cfg.env.terminate_end_of_trajectory = False
+    Cfg.env.terminate_end_of_trajectory = args.terminate_after_reach
     Cfg.env.record_all_envs = False
     Cfg.env.episode_length_s = 20
     Cfg.env.rotate_camera = args.rotate_camera
@@ -90,6 +90,8 @@ def train_go1(headless=True):
     Cfg.rewards.lin_vel_form = args.lin_vel_form
     Cfg.rewards.exploration_steps = +np.inf
     Cfg.rewards.tracking_sigma_lin = 0.05
+    Cfg.rewards.base_height_target = 0.28
+    Cfg.rewards.target_lin_vel = 0.25
 
     # penalty reward scales
     penalty_scaler = args.penalty_scaler
@@ -101,6 +103,7 @@ def train_go1(headless=True):
     Cfg.reward_scales.base_height = -args.r_base_height * penalty_scaler
     Cfg.reward_scales.orientation = -args.r_orientation * penalty_scaler
     Cfg.reward_scales.ang_vel_xy = -args.r_ang_vel * penalty_scaler
+    Cfg.reward_scales.large_vel = -args.r_large_vel * penalty_scaler
     # task reward scales
     Cfg.reward_scales.reaching_z = 0.0
     Cfg.reward_scales.reaching_roll = 0.0
@@ -108,11 +111,11 @@ def train_go1(headless=True):
     if args.strategy == "vel":
         Cfg.reward_scales.e2e = 0
         Cfg.rewards.T_reach = args.t_reach
-        Cfg.rewards.exploration_steps = 200000 * 24
+        Cfg.rewards.exploration_steps = 200000
     if args.strategy == "e2e":
         Cfg.reward_scales.e2e = args.r_task
         Cfg.rewards.T_reach = args.t_reach
-        Cfg.rewards.exploration_steps = args.exploration_iters * 24  # decay only applies for e2e
+        Cfg.rewards.exploration_steps = args.exploration_steps  # decay only applies for e2e
     elif args.strategy == "pms":  # parameterized motor skill
         # TODO: put a positive number here
         Cfg.reward_scales.reaching_z = 0.0
@@ -122,9 +125,9 @@ def train_go1(headless=True):
     Cfg.reward_scales.exploration_yaw = args.r_explore_yaw
 
     # terrain
-    Cfg.env.num_envs = 4000
-    Cfg.terrain.num_cols = 20
-    Cfg.terrain.num_rows = 20
+    Cfg.env.num_envs = 1024
+    Cfg.terrain.num_cols = 32
+    Cfg.terrain.num_rows = 32
     if args.terrain == "plane":
         Cfg.terrain.mesh_type = 'plane'
     elif args.terrain == "single_path":
@@ -182,7 +185,7 @@ def train_go1(headless=True):
             Cfg.env.num_scalar_observations = 45 + int(args.timestep_in_obs) + 2 + 4
 
     # domain randomization stuff
-    #if args.no_domain_rand:
+    enable_random = not args.no_domain_rand
     #    Cfg.domain_rand.push_robots = False
 
     Cfg.domain_rand.lag_timesteps = 6
@@ -194,16 +197,16 @@ def train_go1(headless=True):
     Cfg.env.priv_observe_gravity_transformed_motion = False
     Cfg.domain_rand.randomize_friction_indep = False
     Cfg.env.priv_observe_friction_indep = False
-    Cfg.domain_rand.randomize_friction = True
-    Cfg.env.priv_observe_friction = True
+    Cfg.domain_rand.randomize_friction = enable_random
+    Cfg.env.priv_observe_friction = enable_random
     Cfg.domain_rand.friction_range = [0.1, 3.0]
-    Cfg.domain_rand.randomize_restitution = True
-    Cfg.env.priv_observe_restitution = True
+    Cfg.domain_rand.randomize_restitution = enable_random
+    Cfg.env.priv_observe_restitution = enable_random
     Cfg.domain_rand.restitution_range = [0.0, 0.4]
-    Cfg.domain_rand.randomize_base_mass = True
+    Cfg.domain_rand.randomize_base_mass = enable_random
     Cfg.env.priv_observe_base_mass = False
     Cfg.domain_rand.added_mass_range = [-1.0, 3.0]
-    Cfg.domain_rand.randomize_gravity = True
+    Cfg.domain_rand.randomize_gravity = enable_random
     Cfg.domain_rand.gravity_range = [-1.0, 1.0]
     Cfg.domain_rand.gravity_rand_interval_s = 8.0
     Cfg.domain_rand.gravity_impulse_duration = 0.99
@@ -211,14 +214,14 @@ def train_go1(headless=True):
     Cfg.domain_rand.randomize_com_displacement = False
     Cfg.domain_rand.com_displacement_range = [-0.15, 0.15]
     Cfg.env.priv_observe_com_displacement = False
-    Cfg.domain_rand.randomize_ground_friction = True
+    Cfg.domain_rand.randomize_ground_friction = enable_random
     Cfg.env.priv_observe_ground_friction = False
     Cfg.env.priv_observe_ground_friction_per_foot = False
     Cfg.domain_rand.ground_friction_range = [0.0, 0.0]
-    Cfg.domain_rand.randomize_motor_strength = True
+    Cfg.domain_rand.randomize_motor_strength = enable_random
     Cfg.domain_rand.motor_strength_range = [0.9, 1.1]
     Cfg.env.priv_observe_motor_strength = False
-    Cfg.domain_rand.randomize_motor_offset = True
+    Cfg.domain_rand.randomize_motor_offset = enable_random
     Cfg.domain_rand.motor_offset_range = [-0.02, 0.02]
     Cfg.env.priv_observe_motor_offset = False
     Cfg.domain_rand.push_robots = False
@@ -244,6 +247,7 @@ def train_go1(headless=True):
     env.reset()
 
     PPO_Args.learning_rate = args.learning_rate
+    PPO_Args.gamma = args.gamma
 
     # if logdir does not exist, create one
     if not os.path.exists(args.logdir):
@@ -296,8 +300,10 @@ if __name__ == '__main__':
     parser.add_argument("--gru", action="store_true")
     parser.add_argument("--cnn", action="store_true")
     parser.add_argument("--learning_rate", type=float, default=1e-3)
-    parser.add_argument("--exploration_iters", type=int, default=2500)
+    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--exploration_steps", type=int, default=2500)
     parser.add_argument("--normalize_obs", action="store_true")
+    parser.add_argument("--num_steps_per_env", type=int, default=24)
 
     # env setting
     parser.add_argument("--command_type", default="xy", choices=["xy", "6dof", "xy_norm"])
@@ -312,6 +318,9 @@ if __name__ == '__main__':
     parser.add_argument("--no_domain_rand", action="store_true")
     parser.add_argument("--empty_tunnel", action="store_true")
     parser.add_argument("--random_target", action="store_true")
+    # add boolen flag for terminate after reach target
+    parser.add_argument("--terminate_after_reach", action="store_true")
+
 
     # reward setting
     parser.add_argument("--lin_vel_form", default="exp", choices=["l1", "l2", "exp", "prod"])
@@ -325,6 +334,7 @@ if __name__ == '__main__':
     parser.add_argument("--t_reach", type=int, default=0, help="time step to assign the task reward")
     parser.add_argument("--r_task", type=float, default=1.0)
     parser.add_argument("--r_collision", type=float, default=5.0)
+    parser.add_argument("--r_large_vel", type=float, default=0.0)
 
 
     args = parser.parse_args()

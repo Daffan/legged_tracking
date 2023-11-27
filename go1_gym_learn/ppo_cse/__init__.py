@@ -333,7 +333,7 @@ class Runner:
             print("LOGGING VIDEO")
             # logger.save_video(frames, f"videos/{it:05d}.mp4", fps=1 / self.env.dt)
             frames_np = np.stack(frames).transpose(0, 3, 1, 2)
-            wandb.log({"train": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}}, step=it)
+            wandb.log({"train": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}}, step=it * 24)
 
         if self.env.num_eval_envs > 0:
             frames = self.env.get_complete_frames_eval()
@@ -342,7 +342,7 @@ class Runner:
                 print("LOGGING EVAL VIDEO")
                 # logger.save_video(frames, f"videos/{it:05d}_eval.mp4", fps=1 / self.env.dt)
                 frames_np = np.stack(frames).transpose(0, 3, 1, 2)
-                wandb.log({"eval": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}}, step=it)
+                wandb.log({"eval": {"video": wandb.Video(frames_np, fps=1 / self.env.dt, format="mp4")}}, step=it * 24)
 
     def get_inference_policy(self, device=None):
         self.alg.actor_critic.eval()  # switch to evaluation mode (dropout for example)

@@ -41,6 +41,61 @@ def pyramid_from_points(points):
 
 class TerrainFunctions:
 
+    def narrow_path(terrain, cfg, top=True):
+        p_flat = cfg.p_flat
+        p_double = cfg.p_double
+        pixel_x, pixel_y = terrain.height_field_raw.shape
+        l, w = pixel_x * terrain.horizontal_scale, pixel_y * terrain.horizontal_scale
+
+        p1 = np.random.uniform()
+        p2 = np.random.uniform()
+        
+        num_y = 2 if p2 < p_double else 1
+
+        if top:
+            offset_y = np.random.uniform(-0.6, 0.6, size=(num_y, 1))
+            offset_x = np.random.uniform(-0.3, 0.3, size=(num_y, 1))
+            if p1 < p_flat:  # has 20% chance to be flat
+                height_max, height_min = 0.4, 0.7
+            else:
+                height_max, height_min = 0.0, 0.0
+            lw_low, lw_high = 0.2, 0.4
+        else:
+            offset_y = np.random.uniform(-0.4, 0.4, size=(num_y, 1))
+            offset_x = np.random.uniform(-0.2, 0.2, size=(num_y, 1))
+            if p1 < p_flat:
+                height_max, height_min = 0.15, 0.3
+            else:
+                height_max, height_min = 0.0, 0.0
+            lw_low, lw_high = 0.1, 0.3
+
+        mean_x = np.linspace(-w/2, w/2, 3)[1:-1]
+        mean_y = np.zeros(num_y)
+        mean_x, mean_y = np.meshgrid(mean_x, mean_y)
+        mean_y += offset_y; mean_x += offset_x
+        mean_z = np.random.uniform(mean_x) * (height_max - height_min) + height_min
+
+        height_field_raw = np.zeros((pixel_x, pixel_y))
+        means = np.stack([mean_x.flatten(), mean_y.flatten(), mean_z.flatten()], axis=1)
+        ww, ll = np.random.uniform(low=lw_low, high=lw_high, size=(2, means.shape[0]))
+
+        for (x, y, z), w, l in zip(means, ww, ll):
+            x_low, x_high = (x - w/2) / terrain.horizontal_scale, (x + w/2) / terrain.horizontal_scale
+            x_low, x_high = int(x_low), int(x_high)
+            y_low, y_high = (y - l/2) / terrain.horizontal_scale, (y + l/2) / terrain.horizontal_scale
+            y_low, y_high = int(y_low), int(y_high)
+            height_field_raw[x_low:x_high, y_low:y_high] = z
+
+        if not top:
+            height_field_raw[0, :] = 0.5
+            height_field_raw[-1, :] = 0.5
+            height_field_raw[:, 0] = 0.5
+            height_field_raw[:, -1] = 0.5
+
+        terrain.height_field_raw = (height_field_raw / terrain.vertical_scale).astype(int)
+        
+        return terrain
+
     def single_path(terrain, cfg, top=True):
         p_flat = cfg.p_flat
         p_double = cfg.p_double

@@ -173,13 +173,14 @@ class LeggedRobot(BaseTask):
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
                 self.reward_scales["exploration_lin"] -= self.cfg.reward_scales.exploration_lin * self.dt / self.cfg.rewards.exploration_steps
                 self.reward_scales["exploration_lin"] = max(self.reward_scales["exploration_lin"], 0)
+            self.extras["train/episode"]["exploration_lin"] = self.reward_scales["exploration_lin"]
 
         if "exploration_yaw" in self.reward_scales and "exploration_yaw" in self.reward_scales.keys():
             if self.common_step_counter > self.cfg.rewards.exploration_steps:
                 self.reward_scales["exploration_yaw"] -= self.cfg.reward_scales.exploration_yaw * self.dt / self.cfg.rewards.exploration_steps
                 self.reward_scales["exploration_yaw"] = max(self.reward_scales["exploration_yaw"], 0)
-            self.extras["train/episode"]["exploration_lin"] = self.reward_scales["exploration_lin"]
             self.extras["train/episode"]["exploration_yaw"] = self.reward_scales["exploration_yaw"]
+        # print("step", self.common_step_counter, "exploration_lin", self.reward_scales["exploration_lin"], "exploration_yaw", self.reward_scales["exploration_yaw"])
             
 
         if self.cfg.curriculum_thresholds.cl_fix_target and \
